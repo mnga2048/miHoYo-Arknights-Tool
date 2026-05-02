@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import https from 'node:https';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import type { GachaRecord, StoredData } from './shared/types.js';
+import type { GachaRecord, StoredData, PoolType, RankType } from './shared/types.js';
 import { getGameConfig } from './shared/games.js';
 import type { GameConfig } from './shared/games.js';
 
@@ -305,7 +305,8 @@ ipcMain.handle('data:fetchRemoteRecords', async (event, gameId: string, url: str
           rankType: game.rankMap[item.rank_type] ?? 'B',
           itemType: item.item_type ?? '未知',
           poolType: gt.poolType,
-          poolName: gt.name
+          poolName: gt.name,
+          itemId: item.item_id
         });
       }
 
@@ -319,4 +320,261 @@ ipcMain.handle('data:fetchRemoteRecords', async (event, gameId: string, url: str
   }
 
   return allRecords;
+});
+
+// ===== 明日方舟：官网登录 + 直接 API 获取 =====
+// 认证链路: 登录官网 → 提取 HgToken → OAuth grant → UID → U8 token → 角色登录 → 抽卡 API
+let arknightsWin: BrowserWindow | null = null;
+let arknightsResolve: ((records: GachaRecord[] | null) => void) | null = null;
+let arknightsProgress: ((msg: string) => void) | null = null;
+let arknightsResolved = false;
+let arknightsTimeout: ReturnType<typeof setTimeout> | null = null;
+let arknightsLoginCheck: ReturnType<typeof setInterval> | null = null;
+
+function cleanupArknights() {
+  if (arknightsTimeout) { clearTimeout(arknightsTimeout); arknightsTimeout = null; }
+  if (arknightsLoginCheck) { clearInterval(arknightsLoginCheck); arknightsLoginCheck = null; }
+  if (arknightsWin && !arknightsWin.isDestroyed()) { arknightsWin.close(); }
+  arknightsWin = null;
+  arknightsResolve = null;
+  arknightsProgress = null;
+}
+
+function httpsJsonRequest(method: string, url: string, body: string | null, extraHeaders: Record<string, string> = {}): Promise<{ statusCode: number; data: any; setCookie: string }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const headers: Record<string, string> = { ...extraHeaders };
+    if (body) headers['Content-Type'] = 'application/json;charset=utf-8';
+    const req = https.request({ hostname: parsed.hostname, port: 443, path: parsed.pathname + parsed.search, method, headers }, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        const loc = res.headers.location;
+        if (loc) { httpsJsonRequest(method, loc, body, extraHeaders).then(resolve).catch(reject); return; }
+      }
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        const sc = (res.headers['set-cookie'] as string[] || []).join('; ');
+        try { resolve({ statusCode: res.statusCode || 0, data: JSON.parse(raw), setCookie: sc }); }
+        catch { reject(new Error(`HTTP ${res.statusCode}: ${raw.slice(0, 200)}`)); }
+      });
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+async function tryExtractHgToken(session: Electron.Session): Promise<string | null> {
+  try {
+    const cookies = await session.cookies.get({});
+    if (cookies.length === 0) return null;
+    const cookieStr = cookies
+      .filter(c => (c.domain ?? '').includes('hypergryph.com') && !c.name.startsWith('_') && c.name !== 'ak-user-center')
+      .map(c => `${c.name}=${c.value}`).join('; ');
+    if (!cookieStr) return null;
+    const resp = await httpsJsonRequest('GET', 'https://web-api.hypergryph.com/account/info/hg', null, { 'Cookie': cookieStr });
+    if (resp.statusCode !== 200 || resp.data?.code !== 0) return null;
+    return resp.data?.data?.content || resp.data?.data?.token || null;
+  } catch { return null; }
+}
+
+async function fetchArknightsRecordsDirectly(hgToken: string, progress: (msg: string) => void): Promise<GachaRecord[]> {
+  const game = getGameConfig('arknights');
+
+  // 1. OAuth 授权
+  progress('正在验证账号...');
+  const grant = await httpsJsonRequest('POST', 'https://as.hypergryph.com/user/oauth2/v2/grant',
+    JSON.stringify({ token: hgToken, appCode: 'be36d44aa36bfb5b', type: 1 }));
+  if (grant.data.status !== 0) throw new Error(`OAuth 授权失败: ${grant.data.msg}`);
+  const oauthToken: string = grant.data.data.token;
+
+  // 2. 获取绑定列表 → UID
+  progress('正在获取 UID...');
+  const binding = await httpsJsonRequest('GET',
+    `https://binding-api-account-prod.hypergryph.com/account/binding/v1/binding_list?token=${encodeURIComponent(oauthToken)}&appCode=arknights`, null);
+  if (binding.data.status !== 0) throw new Error(`获取绑定列表失败: ${binding.data.msg}`);
+  const akEntry = (binding.data.data.list as any[]).find((b: any) => b.appCode === 'arknights');
+  if (!akEntry?.bindingList?.length) throw new Error('未找到明日方舟绑定账号');
+  const uid: string = akEntry.bindingList[0].uid;
+  progress(`UID: ${uid}`);
+
+  // 3. 换取 U8 token
+  progress('正在获取 U8 token...');
+  const u8 = await httpsJsonRequest('POST', 'https://binding-api-account-prod.hypergryph.com/account/binding/v1/u8_token_by_uid',
+    JSON.stringify({ token: oauthToken, uid }));
+  if (u8.data.status !== 0) throw new Error(`获取 U8 token 失败: ${u8.data.msg}`);
+  const u8Token: string = u8.data.data.token;
+
+  // 4. 角色登录 → 获取 ak-user-center cookie
+  progress('正在登录角色...');
+  const login = await httpsJsonRequest('POST', 'https://ak.hypergryph.com/user/api/role/login',
+    JSON.stringify({ token: u8Token, source_from: '', share_type: '', share_by: '' }));
+  const cookieMatch = login.setCookie.match(/ak-user-center=([^;]+)/);
+  if (!cookieMatch) throw new Error('角色登录失败：未获取到会话 cookie');
+  const akCookie = `ak-user-center=${cookieMatch[1]}`;
+
+  // 5. 获取抽卡类别
+  progress('正在获取卡池类别...');
+  const cate = await httpsJsonRequest('GET',
+    `https://ak.hypergryph.com/user/api/inquiry/gacha/cate?uid=${encodeURIComponent(uid)}`,
+    null, { 'x-role-token': u8Token, 'Cookie': akCookie });
+  if (cate.data.code !== 0) throw new Error(`获取卡池类别失败: ${cate.data.msg}`);
+  const categories: Array<{ id: string; name: string }> = cate.data.data;
+  progress(`共 ${categories.length} 个卡池类别`);
+
+  // 6. 逐类别拉取记录
+  const allRecords: GachaRecord[] = [];
+  for (let i = 0; i < categories.length; i++) {
+    const cat = categories[i];
+    const displayName = cat.name.replace(/\n/g, ' ');
+    progress(`正在获取「${displayName}」(${i + 1}/${categories.length})...`);
+
+    let lastPos: number | undefined;
+    let lastGachaTs: string | undefined;
+
+    while (true) {
+      let url = `https://ak.hypergryph.com/user/api/inquiry/gacha/history?uid=${encodeURIComponent(uid)}&category=${encodeURIComponent(cat.id)}&size=10`;
+      if (lastPos !== undefined && lastGachaTs !== undefined) {
+        url += `&pos=${lastPos}&gachaTs=${encodeURIComponent(lastGachaTs)}`;
+      }
+      const hist = await httpsJsonRequest('GET', url, null, { 'x-role-token': u8Token, 'Cookie': akCookie });
+      if (hist.data.code !== 0) throw new Error(`获取记录失败: ${hist.data.msg}`);
+
+      const list: any[] = hist.data.data?.list || [];
+      if (list.length === 0) break;
+
+      for (const item of list) {
+        allRecords.push({
+          id: `${item.poolId ?? ''}_${item.charId ?? ''}_${item.gachaTs ?? ''}_${item.pos ?? ''}`,
+          uid,
+          time: formatArknightsTs(item.gachaTs),
+          name: String(item.charName ?? item.charId ?? '未知'),
+          rankType: game.rankMap[String(item.rarity)] ?? 'B' as RankType,
+          itemType: Number(item.rarity) >= 4 ? '角色' : '材料',
+          poolType: mapArknightsPoolType(item.poolId ?? item.poolName ?? '') as PoolType,
+          poolName: String(item.poolName ?? item.poolId ?? '未知').replace(/\n/g, ' '),
+          itemId: String(item.charId ?? '')
+        });
+      }
+
+      progress(`「${displayName}」: 已获取 ${allRecords.length} 条`);
+
+      if (hist.data.data.hasMore && list.length > 0) {
+        lastPos = list[list.length - 1].pos;
+        lastGachaTs = list[list.length - 1].gachaTs;
+      } else {
+        break;
+      }
+      await sleep(200);
+    }
+  }
+  return allRecords;
+}
+
+function formatArknightsTs(ts: string | number): string {
+  const ms = Number(ts);
+  if (isNaN(ms)) return new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const d = new Date(ms > 1e12 ? ms : ms * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function mapArknightsPoolType(poolId: string): string {
+  const id = (poolId ?? '').toLowerCase();
+  if (id.includes('normal') || id.includes('standard') || id.includes('标准') || id.includes('常驻')) return 'standard';
+  return 'exclusive';
+}
+
+ipcMain.handle('data:closeArknightsWebView', () => {
+  arknightsResolved = true;
+  cleanupArknights();
+});
+
+ipcMain.handle('data:fetchArknightsRecords', async (event) => {
+  arknightsResolved = false;
+
+  arknightsWin = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    title: '明日方舟 - 登录获取寻访记录',
+    backgroundColor: '#1a1a2e',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: false
+    }
+  });
+
+  arknightsWin.webContents.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+  );
+
+  arknightsProgress = (msg) => {
+    if (!event.sender.isDestroyed()) event.sender.send('fetch:progress', msg);
+  };
+  arknightsProgress?.('请在浏览器中登录明日方舟账号，登录后将自动获取寻访记录...');
+
+  arknightsWin.webContents.on('did-navigate', (_e, url) => {
+    arknightsProgress?.(`页面: ${url.slice(0, 80)}`);
+  });
+  arknightsWin.webContents.on('did-fail-load', (_e, errorCode, errorDesc) => {
+    arknightsProgress?.(`加载失败 (${errorCode}): ${errorDesc}`);
+  });
+
+  arknightsWin.on('closed', () => {
+    if (!arknightsResolved) {
+      arknightsResolved = true;
+      arknightsProgress?.('窗口已关闭，未获取到记录');
+      if (arknightsLoginCheck) { clearInterval(arknightsLoginCheck); arknightsLoginCheck = null; }
+      arknightsResolve?.(null);
+      arknightsResolve = null;
+      arknightsProgress = null;
+    }
+  });
+
+  // 每 3 秒检查是否已登录（尝试从 session cookies 提取 HgToken）
+  arknightsLoginCheck = setInterval(async () => {
+    if (arknightsResolved || !arknightsWin || arknightsWin.isDestroyed()) {
+      if (arknightsLoginCheck) { clearInterval(arknightsLoginCheck); arknightsLoginCheck = null; }
+      return;
+    }
+    const token = await tryExtractHgToken(arknightsWin.webContents.session);
+    if (!token) return;
+
+    // 登录成功，隐藏窗口，开始拉取记录
+    if (arknightsLoginCheck) { clearInterval(arknightsLoginCheck); arknightsLoginCheck = null; }
+    arknightsProgress?.('登录成功！正在获取寻访记录...');
+    if (arknightsTimeout) { clearTimeout(arknightsTimeout); arknightsTimeout = null; }
+
+    try {
+      const records = await fetchArknightsRecordsDirectly(token, arknightsProgress!);
+      arknightsResolved = true;
+      arknightsProgress?.(`获取完成，共 ${records.length} 条记录`);
+      arknightsResolve?.(records);
+      cleanupArknights();
+    } catch (e) {
+      arknightsResolved = true;
+      arknightsProgress?.(`获取失败: ${e instanceof Error ? e.message : '未知错误'}`);
+      arknightsResolve?.(null);
+      cleanupArknights();
+    }
+    arknightsResolve = null;
+    arknightsProgress = null;
+  }, 3000);
+
+  arknightsTimeout = setTimeout(() => {
+    if (!arknightsResolved) {
+      arknightsResolved = true;
+      arknightsProgress?.('超时（120秒），请重试');
+      cleanupArknights();
+      arknightsResolve?.(null);
+    }
+  }, 120000);
+
+  arknightsWin.loadURL('https://ak.hypergryph.com/');
+  return new Promise<GachaRecord[] | null>((resolve) => { arknightsResolve = resolve; });
 });

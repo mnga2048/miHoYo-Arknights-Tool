@@ -11,6 +11,8 @@ declare global {
       fetchRemoteRecords: (gameId: string, url: string) => Promise<GachaRecord[]>;
       onFetchProgress: (callback: (msg: string) => void) => void;
       showInput: (message: string, defaultVal: string) => Promise<string | null>;
+      fetchArknightsRecords: () => Promise<GachaRecord[] | null>;
+      closeArknightsWebView: () => Promise<void>;
     };
   }
 }

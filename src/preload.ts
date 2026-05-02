@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld('zzzApi', {
     ipcRenderer.on('fetch:progress', (_event, msg) => callback(msg));
   },
   showInput: (message: string, defaultVal: string): Promise<string | null> =>
-    ipcRenderer.invoke('data:showInput', message, defaultVal)
+    ipcRenderer.invoke('data:showInput', message, defaultVal),
+  fetchArknightsRecords: (): Promise<GachaRecord[] | null> => ipcRenderer.invoke('data:fetchArknightsRecords'),
+  closeArknightsWebView: (): Promise<void> => ipcRenderer.invoke('data:closeArknightsWebView')
 });

@@ -19,7 +19,7 @@ interface PoolStats {
   averageS: number;
   bestS: number | null;
   worstS: number | null;
-  sIntervals: number[];
+  sIntervals: { pity: number; name: string; itemId: string }[];
   latestS: GachaRecord | null;
 }
 
@@ -28,12 +28,8 @@ interface SHit {
   pity: number;
   time: string;
   poolName: string;
+  itemId: string;
 }
-
-const poolPityCap: Record<PoolType, number> = {
-  exclusive: 90, 'w-engine': 80, bangboo: 80, standard: 90, other: 90,
-  weapon: 80, novice: 20, chronicled: 90
-};
 
 function normalizePool(value: unknown): PoolType {
   const t = String(value ?? '').toLowerCase();
@@ -64,7 +60,8 @@ function normalizeRecord(raw: Record<string, unknown>, index: number): GachaReco
     rankType,
     itemType: String(raw.itemType ?? raw.item_type ?? raw.type ?? (rankType === 'B' ? '材料' : '未知')),
     poolType,
-    poolName: String(raw.poolName ?? raw.pool_name ?? POOL_LABELS[poolType])
+    poolName: String(raw.poolName ?? raw.pool_name ?? POOL_LABELS[poolType]),
+    itemId: String(raw.itemId ?? raw.item_id ?? raw.charId ?? '')
   };
 }
 
@@ -110,27 +107,28 @@ function mergeRecords(existing: GachaRecord[], incoming: GachaRecord[]): { recor
     imported++;
     map.set(recordKey(r), r);
   });
-  return { records: [...map.values()].sort((a, b) => Date.parse(b.time) - Date.parse(a.time)), result: { imported, skipped, total: incoming.length } };
+  return { records: [...map.values()].sort((a, b) => b.time.localeCompare(a.time)), result: { imported, skipped, total: incoming.length } };
 }
 
 function analyzePool(records: GachaRecord[], poolType: PoolType): PoolStats {
   const pool = records.filter((r) => r.poolType === poolType).sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+  const firstPoolName = pool.find((r) => r.poolName)?.poolName ?? '';
   let sinceS = 0;
   const intervals: number[] = [];
   let latestS: GachaRecord | null = null;
   pool.forEach((r) => {
     sinceS++;
-    if (r.rankType === 'S') { intervals.push(sinceS); sinceS = 0; latestS = r; }
+    if (r.rankType === 'S') { intervals.push({ pity: sinceS, name: r.name, itemId: r.itemId ?? '' }); sinceS = 0; latestS = r; }
   });
   const sCount = pool.filter((r) => r.rankType === 'S').length;
   const aCount = pool.filter((r) => r.rankType === 'A').length;
   return {
-    poolType, poolName: POOL_LABELS[poolType] || poolType,
+    poolType, poolName: firstPoolName || POOL_LABELS[poolType] || poolType,
     total: pool.length, sCount, aCount, bCount: pool.length - sCount - aCount,
     currentPity: sinceS,
-    averageS: intervals.length ? Math.round((intervals.reduce((s, n) => s + n, 0) / intervals.length) * 10) / 10 : 0,
-    bestS: intervals.length ? Math.min(...intervals) : null,
-    worstS: intervals.length ? Math.max(...intervals) : null,
+    averageS: intervals.length ? Math.round((intervals.reduce((s, n) => s + n.pity, 0) / intervals.length) * 10) / 10 : 0,
+    bestS: intervals.length ? Math.min(...intervals.map((n) => n.pity)) : null,
+    worstS: intervals.length ? Math.max(...intervals.map((n) => n.pity)) : null,
     sIntervals: intervals, latestS
   };
 }
@@ -152,14 +150,67 @@ function buildSHitList(records: GachaRecord[]): SHit[] {
   records.sort((a, b) => Date.parse(a.time) - Date.parse(b.time)).forEach((r) => {
     byPool[r.poolType] = (byPool[r.poolType] ?? 0) + 1;
     if (r.rankType === 'S') {
-      hits.push({ name: r.name, pity: byPool[r.poolType], time: r.time, poolName: r.poolName });
+      hits.push({ name: r.name, pity: byPool[r.poolType], time: r.time, poolName: r.poolName, itemId: r.itemId ?? '' });
       byPool[r.poolType] = 0;
     }
   });
   return hits.reverse();
 }
 
+function rankDisplay(rankType: RankType, gameId: string): string {
+  if (gameId === 'arknights') {
+    const m: Record<string, string> = { S: '6星', A: '5星', B: '4星' };
+    return m[rankType] ?? rankType;
+  }
+  return rankType;
+}
+
 function formatPercent(v: number) { return Number.isFinite(v) ? `${Math.round(v * 10) / 10}%` : '0%'; }
+
+function SortBtn({ asc, onToggle }: { asc: boolean; onToggle: () => void }) {
+  return (
+    <button className="sort-btn" onClick={onToggle} title={asc ? '当前：正序（旧→新）' : '当前：倒序（新→旧）'}>
+      {asc ? '↑ 正序' : '↓ 倒序'}
+    </button>
+  );
+}
+
+function CharAvatar({ name, rankType, gameId, itemId, size = 32 }: { name: string; rankType: RankType; gameId: string; itemId: string; size?: number }) {
+  const url = gameId === 'arknights' && itemId
+    ? `https://gh-proxy.com/https://raw.githubusercontent.com/Aceship/An-Tarball/master/images/avatars/${itemId}.png`
+    : gameId === 'genshin' && itemId
+    ? `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
+    : gameId === 'starrail' && itemId
+    ? `https://enka.network/ui/${itemId}.png`
+    : gameId === 'zzz' && itemId
+    ? `https://enka.network/ui/${itemId}.png`
+    : null;
+  const [imgErr, setImgErr] = React.useState(false);
+  const bg = rankType === 'S'
+    ? 'linear-gradient(145deg, rgba(227, 255, 55, 0.15), rgba(168, 194, 0, 0.08))'
+    : rankType === 'A'
+    ? 'linear-gradient(145deg, rgba(199, 138, 255, 0.15), rgba(139, 92, 246, 0.08))'
+    : 'linear-gradient(145deg, rgba(79, 140, 255, 0.15), rgba(59, 130, 246, 0.08))';
+  const fg = rankType === 'S' ? '#e3ff37' : rankType === 'A' ? '#c78aff' : '#4f8cff';
+  const borderColor = rankType === 'S' ? '#e3ff37' : rankType === 'A' ? '#c78aff' : '#4f8cff';
+
+  if (url && !imgErr) {
+    return <img key={itemId} className="char-avatar" style={{ width: size, height: size, border: `2px solid ${borderColor}` }} src={url} alt="" onError={() => setImgErr(true)} />;
+  }
+  return (
+    <div key={itemId} className="char-avatar avatar-fb" style={{
+      width: size, height: size,
+      background: bg,
+      border: `2px solid ${borderColor}`,
+      fontSize: size * 0.4,
+      color: fg,
+      fontWeight: 800,
+      boxShadow: `inset 0 0 0 1px ${borderColor}33`
+    }}>
+      {name.charAt(0)}
+    </div>
+  );
+}
 
 function StatCard({ label, value, hint }: { label: string; value: string | number; hint: string }) {
   return <section className="stat-card"><span>{label}</span><strong>{value}</strong><small>{hint}</small></section>;
@@ -176,10 +227,11 @@ function MiniBar({ label, value, max, tone }: { label: string; value: number; ma
 
 function PoolPanel({ stats, pityCap }: { stats: PoolStats; pityCap: number }) {
   const progress = Math.min(100, Math.round((stats.currentPity / pityCap) * 100));
+  const displayName = stats.poolName && stats.poolName !== stats.poolType ? stats.poolName : (POOL_LABELS[stats.poolType] || stats.poolType);
   return (
     <section className="pool-panel">
       <div className="pool-panel-head">
-        <div><h3>{stats.poolName}</h3><p>{stats.total ? `最近 ${stats.latestS?.name ?? '暂无'}` : '暂无记录'}</p></div>
+        <div><h3>{displayName}</h3><p>{stats.total ? `最近 ${stats.latestS?.name ?? '暂无'}` : '暂无记录'}</p></div>
         <b>{stats.total} {currentGame.pullUnit}</b>
       </div>
       <div className="pity-ring" style={{ '--progress': `${progress}%` } as React.CSSProperties}>
@@ -187,7 +239,7 @@ function PoolPanel({ stats, pityCap }: { stats: PoolStats; pityCap: number }) {
       </div>
       <div className="pool-grid">
         <span>{stats.sCount} 次{currentGame.sUnit}</span>
-        <span>{stats.aCount} 次A</span>
+        <span>{stats.aCount} 次{currentGame.id === 'arknights' ? '5星' : 'A'}</span>
         <span>平均 {stats.averageS || '-'}</span>
         <span>最非 {stats.worstS ?? '-'}</span>
       </div>
@@ -205,22 +257,40 @@ function App() {
   const [filter, setFilter] = useState('');
   const [fetching, setFetching] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [sortAsc, setSortAsc] = useState(false);
+  const [hitSortAsc, setHitSortAsc] = useState(false);
+  const [intervalSortAsc, setIntervalSortAsc] = useState(false);
+  const [hitVertical, setHitVertical] = useState(false);
 
   currentGame = getGameConfig(activeGameId);
   const game = currentGame;
 
   const poolTypes = useMemo(() => [...new Set(records.map((r) => r.poolType))], [records]);
+  const poolNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    records.forEach((r) => { if (!map[r.poolType]) map[r.poolType] = r.poolName; });
+    return map;
+  }, [records]);
+  const poolPityMap = useMemo((): Record<string, number> => {
+    if (game.id === 'arknights') {
+      return { exclusive: 99, standard: 99, other: 99, 'w-engine': 99, weapon: 99, bangboo: 99, novice: 99, chronicled: 99 };
+    }
+    return { exclusive: 90, 'w-engine': 80, bangboo: 80, standard: 90, other: 90, weapon: 80, novice: 20, chronicled: 90 };
+  }, [game.id]);
   const stats = useMemo(() => poolTypes.map((pt) => analyzePool(records, pt)), [records, poolTypes]);
   const total = records.length;
   const sCount = records.filter((r) => r.rankType === 'S').length;
   const aCount = records.filter((r) => r.rankType === 'A').length;
   const monthly = useMemo(() => buildMonthly(records), [records]);
   const maxMonth = Math.max(1, ...monthly.map(([, v]) => v.total));
-  const sHitList = useMemo(() => buildSHitList(records), [records]);
+  const sHitListRaw = useMemo(() => buildSHitList(records), [records]);
+  const sHitList = useMemo(() => hitSortAsc ? [...sHitListRaw].reverse() : sHitListRaw, [sHitListRaw, hitSortAsc]);
   const maxPity = Math.max(1, ...sHitList.map((h) => h.pity));
 
-  const visibleRecords = useMemo(() => records
-    .filter((r) => `${r.name}${r.itemType}${r.poolName}${r.uid}`.includes(filter.trim())), [records, filter]);
+  const visibleRecords = useMemo(() => {
+    const filtered = records.filter((r) => `${r.name}${r.itemType}${r.poolName}${r.uid}`.includes(filter.trim()));
+    return sortAsc ? [...filtered].sort((a, b) => a.time.localeCompare(b.time)) : [...filtered].sort((a, b) => b.time.localeCompare(a.time));
+  }, [records, filter, sortAsc]);
 
   const loadGameData = useCallback(async (gid: string) => {
     try {
@@ -260,16 +330,29 @@ function App() {
 
   async function fetchRemote() {
     if (fetching) return;
+
+    if (!game.isMiHoYo) {
+      try {
+        setFetching(true);
+        setStatus(`${game.name}：正在打开登录页面...`);
+        const remoteRecords = await window.zzzApi?.fetchArknightsRecords() ?? [];
+        if (!remoteRecords || remoteRecords.length === 0) {
+          setStatus(`${game.name}未获取到记录，请在弹出的页面中完成登录并打开抽卡记录`);
+          return;
+        }
+        const merged = mergeRecords(records, remoteRecords);
+        await persist(merged.records, `获取 ${remoteRecords.length} 条${game.name}记录：新增 ${merged.result.imported}，跳过 ${merged.result.skipped}`);
+      } catch (e) { setStatus(`${game.name}获取失败：${(e as Error).message}`); }
+      finally { setFetching(false); }
+      return;
+    }
+
     try {
       setFetching(true);
       setStatus('正在查找抽卡记录链接...');
       let url = await window.zzzApi?.getAuthkeyUrl(activeGameId);
       if (!url) {
         setFetching(false);
-        if (!game.isMiHoYo) {
-          setStatus(`${game.name}不支持在线获取，请使用JSON导入`);
-          return;
-        }
         url = await window.zzzApi?.showInput(`未自动找到${game.name}抽卡记录链接，请手动粘贴URL。\n\n操作：打开${game.name} → 抽卡记录 → 查看详情，复制浏览器地址栏完整URL`, '');
         if (!url) { setStatus('已取消'); return; }
         setFetching(true);
@@ -318,7 +401,7 @@ function App() {
           <button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>总览</button>
           {poolTypes.map((pt) => (
             <button key={pt} className={activeTab === pt ? 'active' : ''} onClick={() => setActiveTab(pt as Tab)}>
-              {POOL_LABELS[pt] || pt}
+              {poolNameMap[pt] || POOL_LABELS[pt] || pt}
             </button>
           ))}
           <button className={activeTab === 'records' ? 'active' : ''} onClick={() => setActiveTab('records')}>明细</button>
@@ -337,10 +420,10 @@ function App() {
         <header className="topbar">
           <div>
             <p>Gacha Analyzer</p>
-            <h2>{activeTab === 'overview' ? '抽卡总览' : activeTab === 'records' ? '抽卡明细' : activeTab === 'settings' ? '数据管理' : (POOL_LABELS[activeTab as PoolType] || activeTab)}</h2>
+            <h2>{activeTab === 'overview' ? '抽卡总览' : activeTab === 'records' ? '抽卡明细' : activeTab === 'settings' ? '数据管理' : (poolNameMap[activeTab as PoolType] || POOL_LABELS[activeTab as PoolType] || activeTab)}</h2>
           </div>
           <div className="actions">
-            <button className="fetch-btn" onClick={fetchRemote} disabled={fetching || !game.isMiHoYo}>{fetching ? '获取中...' : '获取记录'}</button>
+            <button className="fetch-btn" onClick={fetchRemote} disabled={fetching}>{fetching ? '获取中...' : '获取记录'}</button>
             <button onClick={importFile}>导入</button>
             <button onClick={exportData} disabled={!records.length}>导出</button>
           </div>
@@ -353,7 +436,7 @@ function App() {
             <section className="stats-row">
               <StatCard label={`总${game.pullUnit}数`} value={total} hint="所有池合计" />
               <StatCard label={game.sUnit} value={sCount} hint={`出率 ${formatPercent(total ? (sCount / total) * 100 : 0)}`} />
-              <StatCard label="A 级" value={aCount} hint={`出率 ${formatPercent(total ? (aCount / total) * 100 : 0)}`} />
+              <StatCard label={game.id === 'arknights' ? '5 星' : 'A 级'} value={aCount} hint={`出率 ${formatPercent(total ? (aCount / total) * 100 : 0)}`} />
               <StatCard label={`平均${game.sUnit}间隔`} value={sCount ? Math.round(total / sCount) : '-'} hint="粗略估算" />
             </section>
 
@@ -377,15 +460,16 @@ function App() {
                 <div className="panel">
                   <div className="panel-head"><h3>稀有度分布</h3><span>{total} {game.pullUnit}</span></div>
                   <MiniBar label={game.sUnit} value={sCount} max={total} tone="s" />
-                  <MiniBar label="A 级" value={aCount} max={total} tone="a" />
-                  <MiniBar label="B 级" value={Math.max(0, total - sCount - aCount)} max={total} tone="b" />
+                  <MiniBar label={game.id === 'arknights' ? '5 星' : 'A 级'} value={aCount} max={total} tone="a" />
+                  <MiniBar label={game.id === 'arknights' ? '4 星' : 'B 级'} value={Math.max(0, total - sCount - aCount)} max={total} tone="b" />
                 </div>
-                {stats.map((s) => <PoolPanel key={s.poolType} stats={s} pityCap={poolPityCap[s.poolType] ?? game.pityCap} />)}
+                {stats.map((s) => <PoolPanel key={s.poolType} stats={s} pityCap={poolPityMap[s.poolType] ?? game.pityCap} />)}
                 <div className="panel wide s-hit-panel">
-                  <div className="panel-head"><h3>{game.sUnit}出货记录</h3><span>共 {sHitList.length} 次</span></div>
-                  <div className="s-hit-chart">
+                  <div className="panel-head"><h3>{game.sUnit}出货记录</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="layout-btn" onClick={() => setHitVertical(!hitVertical)} title={hitVertical ? '切换到横向' : '切换到竖向'}>{hitVertical ? '☰' : '☷'}</button><SortBtn asc={hitSortAsc} onToggle={() => setHitSortAsc(!hitSortAsc)} /><span>共 {sHitList.length} 次</span></div></div>
+                  <div className={`s-hit-chart ${hitVertical ? 'vertical' : ''}`}>
                     {sHitList.length ? sHitList.map((hit, i) => (
                       <div className="s-hit-item" key={`${hit.name}-${i}`}>
+                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={36} />
                         <b>{hit.pity}</b>
                         <div className="s-hit-bar-wrap"><div className="s-hit-bar" style={{ height: `${Math.max(8, (hit.pity / maxPity) * 100)}%` }} /></div>
                         <span className="s-hit-name">{hit.name}</span>
@@ -400,14 +484,20 @@ function App() {
             {activeTab !== 'overview' && activeTab !== 'records' && activeTab !== 'settings' && (() => {
               const cs = stats.find((s) => s.poolType === activeTab);
               if (!cs) return null;
+              const sortedIntervals = intervalSortAsc ? [...cs.sIntervals].reverse() : cs.sIntervals;
               return (
                 <section className="dashboard-grid pool-view">
-                  <PoolPanel stats={cs} pityCap={poolPityCap[cs.poolType] ?? game.pityCap} />
+                  <PoolPanel stats={cs} pityCap={poolPityMap[cs.poolType] ?? game.pityCap} />
                   <div className="panel wide">
-                    <div className="panel-head"><h3>{game.sUnit}出货间隔</h3><span>按时间顺序</span></div>
+                    <div className="panel-head"><h3>{game.sUnit}出货间隔</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={intervalSortAsc} onToggle={() => setIntervalSortAsc(!intervalSortAsc)} /><span>按时间顺序</span></div></div>
                     <div className="interval-chart">
-                      {cs.sIntervals.length ? cs.sIntervals.map((item, i) => (
-                        <div key={`${item}-${i}`} className="interval-pill" style={{ height: `${Math.max(16, (item / (poolPityCap[cs.poolType] ?? game.pityCap)) * 100)}%` }}><b>{item}</b></div>
+                      {sortedIntervals.length ? sortedIntervals.map((item, i) => (
+                        <div className="interval-item" key={`${item.pity}-${i}`}>
+                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={36} />
+                          <b>{item.pity}</b>
+                          <div className="interval-bar-wrap"><div className="interval-bar" style={{ height: `${Math.max(8, (item.pity / (poolPityMap[cs.poolType] ?? game.pityCap)) * 100)}%` }} /></div>
+                          <span className="interval-name">{item.name}</span>
+                        </div>
                       )) : <div className="empty">暂无记录</div>}
                     </div>
                   </div>
@@ -416,14 +506,14 @@ function App() {
             })()}
 
             <section className="records-panel">
-              <div className="panel-head"><h3>抽卡明细</h3><input placeholder="搜索" value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
+              <div className="panel-head"><h3>抽卡明细</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={sortAsc} onToggle={() => setSortAsc(!sortAsc)} /><input placeholder="搜索" value={filter} onChange={(e) => setFilter(e.target.value)} /></div></div>
               <div className="table-wrap">
                 <table>
                   <thead><tr><th>时间</th><th>名称</th><th>稀有度</th><th>类型</th><th>卡池</th><th>UID</th></tr></thead>
                   <tbody>
                     {visibleRecords.slice(0, 500).map((r) => (
                       <tr key={recordKey(r)} className={`rank-${r.rankType.toLowerCase()}`}>
-                        <td>{r.time}</td><td>{r.name}</td><td>{r.rankType}</td><td>{r.itemType}</td><td>{r.poolName}</td><td>{r.uid}</td>
+                        <td>{r.time}</td><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><CharAvatar name={r.name} rankType={r.rankType} gameId={game.id} itemId={r.itemId ?? ''} size={24} /><span>{r.name}</span></div></td><td>{rankDisplay(r.rankType, game.id)}</td><td>{r.itemType}</td><td>{r.poolName}</td><td>{r.uid}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -481,8 +571,15 @@ function App() {
               <h3>JSON / CSV 导入</h3>
               <p>点击「导入」按钮选择文件。支持多种字段命名格式（如 <code>poolType</code> / <code>pool_type</code> / <code>gacha_type</code> 均可识别）。</p>
 
-              <h3>明日方舟</h3>
-              <p>明日方舟不支持在线获取，请通过第三方工具（如披萨小助手、ArkRecord 等）导出 JSON 文件后，使用「导入」功能导入。</p>
+              <h3>明日方舟 — 获取抽卡记录</h3>
+              <p>点击「获取记录」会弹出一个<b>内置浏览器窗口</b>，无需安装任何额外工具。</p>
+              <ol>
+                <li>点击「获取记录」按钮</li>
+                <li>在弹出的页面中<b>完成登录</b>（手机号+验证码）</li>
+                <li>登录后，页面会自动加载<b>寻访记录</b></li>
+                <li>工具会自动从页面中提取数据并关闭弹窗</li>
+              </ol>
+              <p className="help-note">整个过程约 1-2 分钟。如果 90 秒内未检测到数据，请确认页面已导航到抽卡记录页面。</p>
 
               <h3>数据安全</h3>
               <p>所有数据仅保存在本机，不会上传任何账号信息。authkey 仅在内存中使用，不会存储。</p>

@@ -133,10 +133,12 @@ export const GAMES: GameConfig[] = [
     regionCn: '',
     gachaTypes: [
       { value: 'normal', name: '标准寻访', poolType: 'standard' },
-      { value: 'limited', name: '限定寻访', poolType: 'exclusive' },
-      { value: 'joint', name: '联合寻访', poolType: 'exclusive' }
+      { value: 'spring_fest', name: '春节限定寻访', poolType: 'exclusive' },
+      { value: 'anniver_fest', name: '庆典限定寻访', poolType: 'exclusive' },
+      { value: 'joint', name: '联合寻访', poolType: 'exclusive' },
+      { value: 'festival', name: '限定寻访', poolType: 'exclusive' }
     ],
-    rankMap: { '6': 'S', '5': 'A', '4': 'B', '3': 'B' },
+    rankMap: { '5': 'S', '4': 'A', '3': 'B', '2': 'B' },
     pityCap: 99,
     dataFileName: 'arknights-gacha-records.json',
     isMiHoYo: false,

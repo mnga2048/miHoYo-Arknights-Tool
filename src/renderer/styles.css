@@ -319,6 +319,35 @@ nav button.active {
   font-weight: 800;
 }
 
+.sort-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  background: rgba(227, 255, 55, 0.12);
+  color: #e3ff37;
+  white-space: nowrap;
+  min-height: 28px;
+}
+
+.sort-btn:hover:not(:disabled) {
+  background: rgba(227, 255, 55, 0.22);
+}
+
+.layout-btn {
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #9ca2b3;
+  white-space: nowrap;
+  min-height: 28px;
+}
+
+.layout-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #c7cbd7;
+}
+
 .fetch-btn:disabled {
   opacity: 0.6;
   cursor: wait;
@@ -497,8 +526,8 @@ nav button.active {
   display: grid;
   place-items: center;
   align-content: center;
-  width: 152px;
-  height: 152px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   background:
     radial-gradient(circle at center, #191b21 58%, transparent 60%),
@@ -506,7 +535,7 @@ nav button.active {
 }
 
 .pity-ring strong {
-  font-size: 42px;
+  font-size: 32px;
   color: #fff;
 }
 
@@ -533,20 +562,52 @@ nav button.active {
 }
 
 .interval-chart {
+  height: 240px;
+  display: flex;
   align-items: end;
-  padding-bottom: 0;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 24px;
 }
 
-.interval-pill {
+.interval-item {
   display: grid;
-  place-items: start center;
-  min-width: 34px;
-  max-width: 60px;
-  flex: 1;
-  border-radius: 7px 7px 0 0;
-  background: linear-gradient(180deg, #e3ff37, #62d6c9);
-  color: #101114;
-  padding-top: 8px;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 3px;
+  align-items: center;
+  min-width: 56px;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.interval-item b {
+  color: #e3ff37;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.interval-bar-wrap {
+  width: 100%;
+  display: flex;
+  align-items: end;
+  min-height: 0;
+}
+
+.interval-bar {
+  width: 100%;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(180deg, #e3ff37 0%, #62d6c9 100%);
+  min-height: 4px;
+}
+
+.interval-name {
+  font-size: 11px;
+  color: #c7cbd7;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
 }
 
 .s-hit-panel {
@@ -557,25 +618,76 @@ nav button.active {
   display: flex;
   align-items: end;
   gap: 6px;
-  height: 200px;
+  height: 240px;
   overflow-x: auto;
   padding-bottom: 24px;
 }
 
+.s-hit-chart.vertical {
+  flex-direction: column;
+  align-items: flex-start;
+  height: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 12px;
+}
+
 .s-hit-item {
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  gap: 4px;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 3px;
   align-items: center;
-  min-width: 44px;
+  min-width: 56px;
   flex-shrink: 0;
   height: 100%;
+}
+
+.s-hit-chart.vertical .s-hit-item {
+  grid-template-columns: auto 1fr auto auto;
+  grid-template-rows: auto;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  gap: 8px;
+}
+
+.s-hit-chart.vertical .s-hit-bar-wrap {
+  display: none;
+}
+
+.s-hit-chart.vertical .s-hit-name {
+  grid-column: 2;
+  justify-self: start;
+  max-width: none;
+}
+
+.s-hit-chart.vertical .s-hit-item small {
+  grid-column: 4;
+  justify-self: end;
 }
 
 .s-hit-item b {
   color: #e3ff37;
   font-size: 13px;
   font-weight: 800;
+}
+
+.char-avatar {
+  border-radius: 50%;
+  object-fit: cover;
+  justify-self: center;
+}
+
+.avatar-fb {
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .s-hit-bar-wrap {
@@ -599,7 +711,8 @@ nav button.active {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 56px;
+  max-width: 80px;
+  writing-mode: horizontal-tb;
 }
 
 .s-hit-item small {
@@ -607,6 +720,9 @@ nav button.active {
   color: #6b7280;
   text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
 }
 
 .records-panel {

@@ -13,6 +13,7 @@ export interface GachaRecord {
   itemType: string;
   poolType: PoolType;
   poolName: string;
+  itemId?: string;
 }
 
 export interface StoredData {

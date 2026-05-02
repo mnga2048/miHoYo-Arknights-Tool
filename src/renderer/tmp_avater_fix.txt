@@ -1,0 +1,36 @@
+function CharAvatar({ name, rankType, gameId, itemId, size = 32 }: { name: string; rankType: RankType; gameId: string; itemId: string; size?: number }) {
+  const url = gameId === 'arknights' && itemId
+    ? `https://gh-proxy.com/https://raw.githubusercontent.com/Aceship/An-Tarball/master/images/avatars/${itemId}.png`
+    : gameId === 'genshin' && itemId
+    ? `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
+    : gameId === 'starrail' && itemId
+    ? `https://enka.network/ui/${itemId}.png`
+    : gameId === 'zzz' && itemId
+    ? `https://enka.network/ui/${itemId}.png`
+    : null;
+  const [imgErr, setImgErr] = React.useState(false);
+  const borderColor = rankType === 'S' ? '#e3ff37' : rankType === 'A' ? '#c78aff' : '#4f8cff';
+  const bg = rankType === 'S'
+    ? 'linear-gradient(145deg, rgba(227, 255, 55, 0.15), rgba(168, 194, 0, 0.08))'
+    : rankType === 'A'
+    ? 'linear-gradient(145deg, rgba(199, 138, 255, 0.15), rgba(139, 92, 246, 0.08))'
+    : 'linear-gradient(145deg, rgba(79, 140, 255, 0.15), rgba(59, 130, 246, 0.08))';
+  const fg = rankType === 'S' ? '#e3ff37' : rankType === 'A' ? '#c78aff' : '#4f8cff';
+
+  if (url && !imgErr) {
+    return <img key={itemId} className="char-avatar" style={{ width: size, height: size, border: `2px solid ${borderColor}` }} src={url} alt="" onError={() => setImgErr(true)} />;
+  }
+  return (
+    <div key={itemId} className="char-avatar avatar-fb" style={{
+      width: size, height: size,
+      background: bg,
+      border: `2px solid ${borderColor}`,
+      fontSize: size * 0.4,
+      color: fg,
+      fontWeight: 800,
+      boxShadow: `inset 0 0 0 1px ${borderColor}33`
+    }}>
+      {name.charAt(0)}
+    </div>
+  );
+}
