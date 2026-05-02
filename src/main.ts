@@ -463,7 +463,7 @@ async function fetchArknightsRecordsDirectly(hgToken: string, progress: (msg: st
           name: String(item.charName ?? item.charId ?? '未知'),
           rankType: game.rankMap[String(item.rarity)] ?? 'B' as RankType,
           itemType: Number(item.rarity) >= 4 ? '角色' : '材料',
-          poolType: mapArknightsPoolType(item.poolId ?? item.poolName ?? '') as PoolType,
+          poolType: mapArknightsPoolType(cat.name),
           poolName: String(item.poolName ?? item.poolId ?? '未知').replace(/\n/g, ' '),
           itemId: String(item.charId ?? '')
         });
@@ -491,9 +491,11 @@ function formatArknightsTs(ts: string | number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function mapArknightsPoolType(poolId: string): string {
-  const id = (poolId ?? '').toLowerCase();
-  if (id.includes('normal') || id.includes('standard') || id.includes('标准') || id.includes('常驻')) return 'standard';
+function mapArknightsPoolType(categoryName: string): PoolType {
+  const name = (categoryName ?? '').toLowerCase();
+  if (name.includes('标准') || name.includes('standard') || name.includes('normal') || name.includes('常驻')) return 'standard';
+  if (name.includes('联合') || name.includes('joint')) return 'joint';
+  if (name.includes('春节') || name.includes('spring') || name.includes('周年') || name.includes('anniver') || name.includes('庆典') || name.includes('感恩')) return 'festival';
   return 'exclusive';
 }
 

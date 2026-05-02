@@ -33,10 +33,13 @@ interface SHit {
 
 function normalizePool(value: unknown): PoolType {
   const t = String(value ?? '').toLowerCase();
+  if (t === '2' || (t.includes('光锥') && t.includes('常驻'))) return 'standard-weapon';
   if (t.includes('weapon') || t.includes('w-engine') || t.includes('音擎') || t.includes('光锥') || t === '302' || t === '12' || t === '3002') return 'weapon';
   if (t.includes('bangboo') || t.includes('邦布') || t === '500' || t === '5001') return 'bangboo';
-  if (t.includes('standard') || t.includes('常驻') || t === '200' || t === '1001') return 'standard';
-  if (t.includes('exclusive') || t.includes('角色') || t.includes('独家') || t.includes('限定') || t === '301' || t === '11' || t === '400' || t === '2002' || t === 'limited' || t === 'joint') return 'exclusive';
+  if (t.includes('standard') || t.includes('常驻') || t === '200' || t === '1001' || t === '1') return 'standard';
+  if (t.includes('joint') || t.includes('联合')) return 'joint';
+  if (t.includes('spring') || t.includes('春节') || t.includes('anniver') || t.includes('周年') || t.includes('庆典') || t.includes('感恩')) return 'festival';
+  if (t.includes('exclusive') || t.includes('角色') || t.includes('独家') || t.includes('限定') || t === '301' || t === '11' || t === '400' || t === '2002' || t === 'limited') return 'exclusive';
   if (t.includes('novice') || t.includes('新手') || t === '100') return 'novice';
   if (t.includes('chronicled') || t.includes('集录') || t === 'normal') return 'standard';
   return 'other';
@@ -179,33 +182,40 @@ function CharAvatar({ name, rankType, gameId, itemId, size = 32 }: { name: strin
   const [imgErr, setImgErr] = React.useState(false);
   const [imgSrcIndex, setImgSrcIndex] = React.useState(0);
 
-  const getAvatarUrls = () => {
-    if (gameId === 'arknights' && itemId) {
-      const jsdelivrUrl = `https://cdn.jsdelivr.net/gh/yuanyan3060/ArknightsGameResource@main/avatar/${itemId}.png`;
-      const githubUrl = `https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/${itemId}.png`;
-      return [jsdelivrUrl, githubUrl];
-    }
+const getAvatarUrls = () => {
+  // 明日方舟 —— jsDelivr 加速的 GitHub 资源
+  if (gameId === 'arknights' && itemId) {
+    const jsdelivrUrl = `https://cdn.jsdelivr.net/gh/yuanyan3060/ArknightsGameResource@main/avatar/${itemId}.png`;
+    const githubUrl = `https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/${itemId}.png`;
+    return [jsdelivrUrl, githubUrl];
+  }
 
-    if (gameId === 'genshin' && itemId) {
-      const officialUrl = `https://act.hoyoverse.com/hk4e/e20200928calculate/avatar/icon_w_assets/UI_AvatarIcon_${itemId}.png`;
-      const enkaUrl = `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`;
-      return [officialUrl, enkaUrl];
-    }
+  // 原神 —— Enka Network（仅此一条路）
+  if (gameId === 'genshin' && itemId) {
+    return [
+      `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`,
+      `https://enka.network/ui/UI_AvatarIcon_Side_${itemId}.png`
+    ];
+  }
 
-    if (gameId === 'starrail' && itemId) {
-      const officialUrl = `https://act.hoyoverse.com/sr/event/e20230111calculate/avatar/icon_w_assets/${itemId}.png`;
-      const enkaUrl = `https://enka.network/ui/${itemId}.png`;
-      return [officialUrl, enkaUrl];
-    }
+  // 崩坏：星穹铁道 —— Enka Network
+  if (gameId === 'starrail' && itemId) {
+    return [
+      `https://enka.network/ui/${itemId}.png`,
+      `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
+    ];
+  }
 
-    if (gameId === 'zzz' && itemId) {
-      const officialUrl = `https://act.hoyoverse.com/zzz/event/e20240601calculate/avatar/icon_w_assets/${itemId}.png`;
-      const enkaUrl = `https://enka.network/ui/${itemId}.png`;
-      return [officialUrl, enkaUrl];
-    }
+  // 绝区零 —— Enka Network
+  if (gameId === 'zzz' && itemId) {
+    return [
+      `https://enka.network/ui/${itemId}.png`,
+      `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
+    ];
+  }
 
-    return [];
-  };
+  return [];
+};
 
   const urls = getAvatarUrls();
   const url = urls[imgSrcIndex] || null;
@@ -291,8 +301,6 @@ function App() {
   const [sortAsc, setSortAsc] = useState(false);
   const [hitSortAsc, setHitSortAsc] = useState(false);
   const [intervalSortAsc, setIntervalSortAsc] = useState(false);
-  const [hitVertical, setHitVertical] = useState(false);
-  const [intervalVertical, setIntervalVertical] = useState(false);
 
   currentGame = getGameConfig(activeGameId);
   const game = currentGame;
@@ -305,9 +313,9 @@ function App() {
   }, [records]);
   const poolPityMap = useMemo((): Record<string, number> => {
     if (game.id === 'arknights') {
-      return { exclusive: 99, standard: 99, other: 99, 'w-engine': 99, weapon: 99, bangboo: 99, novice: 99, chronicled: 99 };
+      return { exclusive: 99, standard: 99, other: 99, 'w-engine': 99, weapon: 99, bangboo: 99, novice: 99, chronicled: 99, 'standard-weapon': 99, joint: 99, festival: 99 };
     }
-    return { exclusive: 90, 'w-engine': 80, bangboo: 80, standard: 90, other: 90, weapon: 80, novice: 20, chronicled: 90 };
+    return { exclusive: 90, 'w-engine': 80, bangboo: 80, standard: 90, 'standard-weapon': 90, other: 90, weapon: 80, novice: 20, chronicled: 90, joint: 90, festival: 90 };
   }, [game.id]);
   const stats = useMemo(() => poolTypes.map((pt) => analyzePool(records, pt)), [records, poolTypes]);
   const total = records.length;
@@ -318,6 +326,9 @@ function App() {
   const sHitListRaw = useMemo(() => buildSHitList(records), [records]);
   const sHitList = useMemo(() => hitSortAsc ? [...sHitListRaw].reverse() : sHitListRaw, [sHitListRaw, hitSortAsc]);
   const maxPity = Math.max(1, ...sHitList.map((h) => h.pity));
+  const overallAvgPity = sHitListRaw.length > 0
+    ? Math.round(sHitListRaw.reduce((sum, h) => sum + h.pity, 0) / sHitListRaw.length * 10) / 10
+    : 0;
 
   const visibleRecords = useMemo(() => {
     const filtered = records.filter((r) => `${r.name}${r.itemType}${r.poolName}${r.uid}`.includes(filter.trim()));
@@ -469,7 +480,7 @@ function App() {
               <StatCard label={`总${game.pullUnit}数`} value={total} hint="所有池合计" />
               <StatCard label={game.sUnit} value={sCount} hint={`出率 ${formatPercent(total ? (sCount / total) * 100 : 0)}`} />
               <StatCard label={game.id === 'arknights' ? '5 星' : 'A 级'} value={aCount} hint={`出率 ${formatPercent(total ? (aCount / total) * 100 : 0)}`} />
-              <StatCard label={`平均${game.sUnit}间隔`} value={sCount ? Math.round(total / sCount) : '-'} hint="粗略估算" />
+              <StatCard label={`平均${game.sUnit}间隔`} value={sCount ? overallAvgPity : '-'} hint="各池实际平均" />
             </section>
 
             {activeTab === 'overview' && (
@@ -509,15 +520,15 @@ function App() {
                 </div>
                 {stats.map((s) => <PoolPanel key={s.poolType} stats={s} pityCap={poolPityMap[s.poolType] ?? game.pityCap} game={game} />)}
                 <div className="panel wide s-hit-panel">
-                  <div className="panel-head"><h3>{game.sUnit}出货记录</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="layout-btn" onClick={() => setHitVertical(!hitVertical)} title={hitVertical ? '切换到横向' : '切换到竖向'}>{hitVertical ? '☰' : '☷'}</button><SortBtn asc={hitSortAsc} onToggle={() => setHitSortAsc(!hitSortAsc)} /><span>共 {sHitList.length} 次</span></div></div>
-                  <div className={`s-hit-chart ${hitVertical ? 'vertical' : ''}`}>
+                  <div className="panel-head"><h3>{game.sUnit}出货记录</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={hitSortAsc} onToggle={() => setHitSortAsc(!hitSortAsc)} /><span>共 {sHitList.length} 次</span></div></div>
+                  <div className="hit-list">
                     {sHitList.length ? sHitList.map((hit, i) => (
-                      <div className="s-hit-item" key={`${hit.name}-${i}`}>
-                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={40} />
-                        <b>{hit.pity}</b>
-                        <div className="s-hit-bar-wrap"><div className="s-hit-bar" style={{ height: `${Math.max(8, (hit.pity / maxPity) * 100)}%` }} /></div>
-                        <span className="s-hit-name">{hit.name}</span>
-                        <small>{hit.poolName}</small>
+                      <div className="hit-row" key={`${hit.name}-${i}`}>
+                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={30} />
+                        <span className="hit-row-name">{hit.name}</span>
+                        <div className="hit-row-track"><div className="hit-row-bar s-bar" style={{ width: `${(hit.pity / maxPity) * 100}%` }} /></div>
+                        <b className="hit-row-pity">{hit.pity}</b>
+                        <small className="hit-row-pool">{hit.poolName}</small>
                       </div>
                     )) : <div className="empty">暂无{game.sUnit}出货记录</div>}
                   </div>
@@ -533,14 +544,14 @@ function App() {
                 <section className="dashboard-grid pool-view">
                   <PoolPanel stats={cs} pityCap={poolPityMap[cs.poolType] ?? game.pityCap} game={game} />
                   <div className="panel wide">
-                    <div className="panel-head"><h3>{game.sUnit}出货间隔</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="layout-btn" onClick={() => setIntervalVertical(!intervalVertical)} title={intervalVertical ? '切换到横向' : '切换到竖向'}>{intervalVertical ? '☰' : '☷'}</button><SortBtn asc={intervalSortAsc} onToggle={() => setIntervalSortAsc(!intervalSortAsc)} /><span>按时间顺序</span></div></div>
-                    <div className={`interval-chart ${intervalVertical ? 'vertical' : ''}`}>
+                    <div className="panel-head"><h3>{game.sUnit}出货间隔</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={intervalSortAsc} onToggle={() => setIntervalSortAsc(!intervalSortAsc)} /><span>按时间顺序</span></div></div>
+                    <div className="hit-list">
                       {sortedIntervals.length ? sortedIntervals.map((item, i) => (
-                        <div className="interval-item" key={`${item.pity}-${i}`}>
-                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={40} />
-                          <b>{item.pity}</b>
-                          <div className="interval-bar-wrap"><div className="interval-bar" style={{ height: `${Math.max(8, (item.pity / (poolPityMap[cs.poolType] ?? game.pityCap)) * 100)}%` }} /></div>
-                          <span className="interval-name">{item.name}</span>
+                        <div className="hit-row" key={`${item.pity}-${i}`}>
+                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={30} />
+                          <span className="hit-row-name">{item.name}</span>
+                          <div className="hit-row-track"><div className="hit-row-bar i-bar" style={{ width: `${(item.pity / (poolPityMap[cs.poolType] ?? game.pityCap)) * 100}%` }} /></div>
+                          <b className="hit-row-pity">{item.pity}</b>
                         </div>
                       )) : <div className="empty">暂无记录</div>}
                     </div>

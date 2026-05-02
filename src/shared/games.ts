@@ -110,7 +110,7 @@ export const GAMES: GameConfig[] = [
     regionCn: 'prod_gf_cn',
     gachaTypes: [
       { value: '1', name: '常驻跃迁', poolType: 'standard' },
-      { value: '2', name: '常驻光锥', poolType: 'standard' },
+      { value: '2', name: '常驻光锥', poolType: 'standard-weapon' },
       { value: '11', name: '限定角色跃迁', poolType: 'exclusive' },
       { value: '12', name: '限定光锥跃迁', poolType: 'weapon' }
     ],
