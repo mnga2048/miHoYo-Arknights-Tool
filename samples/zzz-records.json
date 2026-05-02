@@ -1,0 +1,54 @@
+{
+  "records": [
+    {
+      "id": "sample-001",
+      "uid": "100000001",
+      "time": "2026-04-20 21:13:05",
+      "name": "星见雅",
+      "rankType": "S",
+      "itemType": "代理人",
+      "poolType": "exclusive",
+      "poolName": "独家频段"
+    },
+    {
+      "id": "sample-002",
+      "uid": "100000001",
+      "time": "2026-04-20 21:12:55",
+      "name": "苍角",
+      "rankType": "A",
+      "itemType": "代理人",
+      "poolType": "exclusive",
+      "poolName": "独家频段"
+    },
+    {
+      "id": "sample-003",
+      "uid": "100000001",
+      "time": "2026-04-20 21:12:45",
+      "name": "音擎组件",
+      "rankType": "B",
+      "itemType": "音擎",
+      "poolType": "exclusive",
+      "poolName": "独家频段"
+    },
+    {
+      "id": "sample-004",
+      "uid": "100000001",
+      "time": "2026-04-18 20:02:11",
+      "name": "残心青囊",
+      "rankType": "S",
+      "itemType": "音擎",
+      "poolType": "w-engine",
+      "poolName": "音擎频段"
+    },
+    {
+      "id": "sample-005",
+      "uid": "100000001",
+      "time": "2026-04-11 19:48:02",
+      "name": "阿全",
+      "rankType": "S",
+      "itemType": "邦布",
+      "poolType": "bangboo",
+      "poolName": "邦布频段"
+    }
+  ]
+}

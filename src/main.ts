@@ -1,0 +1,322 @@
+import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import https from 'node:https';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import type { GachaRecord, StoredData } from './shared/types.js';
+import { getGameConfig } from './shared/games.js';
+import type { GameConfig } from './shared/games.js';
+
+const isDev = !app.isPackaged;
+
+function dataFilePath(gameId: string) {
+  const game = getGameConfig(gameId);
+  return path.join(app.getPath('userData'), game.dataFileName);
+}
+
+async function readStoredData(gameId: string): Promise<StoredData> {
+  const filePath = dataFilePath(gameId);
+  if (!existsSync(filePath)) {
+    return { records: [], updatedAt: new Date().toISOString() };
+  }
+  const raw = await fs.readFile(filePath, 'utf8');
+  return JSON.parse(raw) as StoredData;
+}
+
+async function writeStoredData(gameId: string, records: GachaRecord[]): Promise<StoredData> {
+  const data: StoredData = { records, updatedAt: new Date().toISOString() };
+  await fs.writeFile(dataFilePath(gameId), JSON.stringify(data, null, 2), 'utf8');
+  return data;
+}
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1320,
+    height: 860,
+    minWidth: 1080,
+    minHeight: 720,
+    title: '多游戏抽卡分析工具',
+    backgroundColor: '#101114',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDesc) => {
+    console.error('Failed to load:', errorCode, errorDesc);
+  });
+
+  if (isDev) {
+    void win.loadURL('http://127.0.0.1:5173');
+  } else {
+    void win.loadFile(path.join(__dirname, '../dist/index.html'));
+  }
+}
+
+app.whenReady().then(() => {
+  createWindow();
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+ipcMain.handle('data:load', async (_e, gameId: string) => readStoredData(gameId));
+ipcMain.handle('data:save', async (_e, gameId: string, records: GachaRecord[]) => writeStoredData(gameId, records));
+
+ipcMain.handle('data:showInput', async (_e, message: string) => {
+  const focused = BrowserWindow.getFocusedWindow();
+  if (!focused) return null;
+  const { dialog } = await import('electron');
+  await dialog.showMessageBox(focused, {
+    type: 'info',
+    buttons: ['已复制，继续'],
+    title: '手动输入URL',
+    message: message + '\n\n请先复制URL到剪贴板，然后点击"已复制，继续"。'
+  });
+  return clipboard.readText();
+});
+
+ipcMain.handle('data:chooseImport', async () => {
+  const { dialog } = await import('electron');
+  const result = await dialog.showOpenDialog({
+    title: '导入抽卡记录',
+    filters: [{ name: '抽卡记录', extensions: ['json', 'csv'] }, { name: '所有文件', extensions: ['*'] }],
+    properties: ['openFile']
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const filePath = result.filePaths[0];
+  return {
+    fileName: path.basename(filePath),
+    extension: path.extname(filePath).toLowerCase(),
+    content: await fs.readFile(filePath, 'utf8')
+  };
+});
+
+ipcMain.handle('data:export', async (_e, gameId: string, records: GachaRecord[]) => {
+  const { dialog } = await import('electron');
+  const game = getGameConfig(gameId);
+  const result = await dialog.showSaveDialog({
+    title: '导出抽卡记录',
+    defaultPath: `${game.id}-gacha-records-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  });
+  if (result.canceled || !result.filePath) return false;
+  await fs.writeFile(result.filePath, JSON.stringify({ records, exportedAt: new Date().toISOString() }, null, 2), 'utf8');
+  return true;
+});
+
+function httpsGet(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        const loc = res.headers.location;
+        if (loc) { httpsGet(loc).then(resolve).catch(reject); return; }
+      }
+      if (res.statusCode && res.statusCode >= 400) {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => reject(new Error(`HTTP ${res.statusCode}: ${Buffer.concat(chunks).toString('utf8').slice(0, 200)}`)));
+        res.on('error', reject);
+        return;
+      }
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+
+function parseUrlParams(url: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  let query = url.includes('?') ? url.split('?')[1] : url;
+  query = query.split('#')[0]; // strip hash fragment
+  for (const pair of query.split('&')) {
+    const [key, ...rest] = pair.split('=');
+    if (key) params[key] = rest.join('=');
+  }
+  return params;
+}
+
+function findGameInstallPath(game: GameConfig): string | null {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const localLow = process.platform === 'win32'
+    ? path.join(home, 'AppData', 'LocalLow')
+    : path.join(home, 'Library', 'Application Support');
+  const vendors = ['miHoYo', 'Cognosphere'];
+  const gameDataDir: Record<string, RegExp> = {
+    zzz: /ZenlessZoneZero|绝区零/i,
+    genshin: /GenshinImpact|原神/i,
+    starrail: /StarRail|崩坏：星穹铁道/i
+  };
+  const dataDirName: Record<string, string[]> = {
+    zzz: ['ZenlessZoneZero_Data'],
+    genshin: ['GenshinImpact_Data', 'YuanShen_Data'],
+    starrail: ['StarRail_Data']
+  };
+  const pattern = gameDataDir[game.id];
+  const dirNames = dataDirName[game.id];
+  if (!pattern || !dirNames) return null;
+  for (const vendor of vendors) {
+    const vendorDir = path.join(localLow, vendor);
+    if (!existsSync(vendorDir)) continue;
+    for (const sub of readdirSync(vendorDir)) {
+      if (!pattern.test(sub)) continue;
+      const logFiles = ['Player.log', 'output_log.txt'].map(f => path.join(vendorDir, sub, f)).filter(f => existsSync(f));
+      for (const logFile of logFiles) {
+        try {
+          const content = readFileSync(logFile, 'utf8');
+          for (const dirName of dirNames) {
+            const escaped = dirName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const m = content.match(new RegExp(`[A-Za-z]:[\\\\/][^\\r\\n]+?${escaped}`, 'i'));
+            if (m?.[0]) return path.dirname(m[0]);
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  }
+  return null;
+}
+
+function extractUrlFromWebCache(game: GameConfig): string | null {
+  const installDir = findGameInstallPath(game);
+  if (!installDir) return null;
+  const cacheBaseNames: Record<string, string[]> = {
+    zzz: ['ZenlessZoneZero_Data'],
+    genshin: ['GenshinImpact_Data', 'YuanShen_Data'],
+    starrail: ['StarRail_Data']
+  };
+  const dirNames = cacheBaseNames[game.id];
+  if (!dirNames) return null;
+  for (const dataDirName of dirNames) {
+    const wcDir = path.join(installDir, dataDirName, 'webCaches');
+    if (!existsSync(wcDir)) continue;
+    const versions = readdirSync(wcDir)
+      .filter(v => /^\d+\.\d+\.\d+\.\d+$/.test(v))
+      .sort().reverse();
+    for (const ver of versions) {
+      const data2 = path.join(wcDir, ver, 'Cache', 'Cache_Data', 'data_2');
+      if (!existsSync(data2)) continue;
+      try {
+        const raw = readFileSync(data2, 'utf8');
+        const parts = raw.split('\0');
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const seg = parts[i];
+          if (seg.startsWith('1/0/') && seg.includes('getGachaLog') && seg.includes('auth_appid=webview_gacha')) {
+            return seg.slice(4).split('\n')[0];
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+  return null;
+}
+
+async function extractAuthkeyFromLogs(game: GameConfig): Promise<string | null> {
+  for (const logPath of game.logPaths) {
+    if (!existsSync(logPath)) continue;
+    try {
+      const content = await fs.readFile(logPath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
+        if (line.includes('authkey') && line.includes(game.logKeyword)) {
+          const match = line.match(/https?:\/\/[^\s"'<>#]+/);
+          if (match) return match[0];
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  return null;
+}
+
+ipcMain.handle('data:getAuthkeyUrl', async (_e, gameId: string): Promise<string | null> => {
+  const game = getGameConfig(gameId);
+  if (!game.isMiHoYo) return null;
+
+  const clipText = clipboard.readText();
+  if (clipText.includes('authkey') && clipText.includes(game.logKeyword)) return clipText;
+
+  const cacheUrl = extractUrlFromWebCache(game);
+  if (cacheUrl) return cacheUrl;
+
+  const logUrl = await extractAuthkeyFromLogs(game);
+  if (logUrl) return logUrl;
+
+  return null;
+});
+
+ipcMain.handle('data:fetchRemoteRecords', async (event, gameId: string, url: string) => {
+  const game = getGameConfig(gameId);
+  if (!game.isMiHoYo) throw new Error(`${game.name}不支持在线获取，请使用JSON导入功能`);
+
+  const sendProgress = (msg: string) => event.sender.send('fetch:progress', msg);
+  const params = parseUrlParams(url);
+  const authkey = params.authkey;
+  if (!authkey) throw new Error('URL 不包含 authkey');
+
+  const lang = params.lang || 'zh-cn';
+  const gameBiz = params.game_biz || game.bizKey;
+  const region = params.region || game.regionCn;
+  const rawBase = url.includes('?') ? url.split('?')[0] : url;
+  const baseUrl = rawBase.includes('getGachaLog') ? rawBase : (url.includes('mihoyo.com') ? game.apiCn : game.apiOs);
+
+  const allRecords: GachaRecord[] = [];
+
+  for (let i = 0; i < game.gachaTypes.length; i++) {
+    const gt = game.gachaTypes[i];
+    sendProgress(`正在获取 ${gt.name}...`);
+    let page = 1;
+    let endId = '0';
+
+    while (true) {
+      const fullUrl = `${baseUrl}?authkey_ver=1&sign_type=2&auth_appid=webview_gacha&lang=${encodeURIComponent(lang)}&game_biz=${encodeURIComponent(gameBiz)}&plat_type=pc&region=${encodeURIComponent(region)}&authkey=${authkey}&page=${page}&size=20&gacha_type=${gt.value}&end_id=${endId}`;
+      const raw = await httpsGet(fullUrl);
+      let json: any;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        throw new Error(`API 返回非 JSON 数据（authkey 可能已过期），请重新在游戏中打开抽卡记录页面`);
+      }
+
+      if (json.retcode === -100 || json.retcode === -101) {
+        throw new Error('authkey 已过期，请在游戏中重新打开抽卡记录页面后重试');
+      }
+      if (json.retcode !== 0) {
+        throw new Error(`API 错误 (code: ${json.retcode}): ${json.message || '未知错误'}`);
+      }
+
+      const list = json.data?.list ?? [];
+      if (list.length === 0) break;
+
+      for (const item of list) {
+        allRecords.push({
+          id: String(item.id),
+          uid: String(item.uid),
+          time: item.time,
+          name: item.name,
+          rankType: game.rankMap[item.rank_type] ?? 'B',
+          itemType: item.item_type ?? '未知',
+          poolType: gt.poolType,
+          poolName: gt.name
+        });
+      }
+
+      sendProgress(`${gt.name}: 已获取 ${allRecords.length} 条`);
+      endId = String(list[list.length - 1].id);
+      page += 1;
+      await sleep(300);
+    }
+
+    sendProgress(`总计已获取 ${allRecords.length} 条 (${i + 1}/${game.gachaTypes.length})`);
+  }
+
+  return allRecords;
+});

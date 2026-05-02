@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(npx electron-builder:*)",
+      "Bash(ls:*)",
+      "Bash(npx electron *)",
+      "Bash(node -e \"console.log\\(require.resolve\\('electron'\\)\\)\")",
+      "Bash(node -e \"const path = require\\('path'\\); const ePath = require\\('electron'\\); console.log\\(ePath\\);\")",
+      "Bash(\"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" --version)",
+      "Bash(\"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" -e \"const {app} = require\\('electron'\\); console.log\\('app type:', typeof app\\); app.on\\('ready', \\(\\) => { console.log\\('isPackaged:', app.isPackaged\\); app.quit\\(\\); }\\);\")",
+      "Bash(\"G:/AIHub/Codex测试1/release/win-unpacked/绝区零抽卡分析工具.exe\")",
+      "Bash(npm ls *)",
+      "Bash(node -e ' *)",
+      "Bash(node node_modules/electron/dist/electron.exe -e \"console.log\\(typeof require\\('electron'\\).app\\)\")",
+      "Bash(\"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" -e \"console.log\\(typeof require\\('electron'\\).app\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\);const j=JSON.parse\\(d\\);console.log\\('version:', j.version\\);console.log\\('distUrl:', j.distUrl || j.url || 'default'\\);\")",
+      "Bash(node -e \"const j = JSON.parse\\(require\\('fs'\\).readFileSync\\('G:/AIHub/Codex测试1/node_modules/electron/package.json','utf8'\\)\\); console.log\\('version:', j.version\\);\")",
+      "Bash(\"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" \"G:/AIHub/Codex测试1/dist-electron/main.js\")",
+      "Bash(\"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" -e \"const e = require\\('electron'\\); console.log\\(JSON.stringify\\(Object.keys\\(e\\)\\)\\);\")",
+      "Bash(rm -rf node_modules/electron .npm-cache/electron)",
+      "Bash(npm cache *)",
+      "Bash(\"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" -e \"const {app} = require\\('electron'\\); console.log\\(typeof app, app ? 'OK' : 'FAIL'\\);\")",
+      "Bash(cmd.exe /c \"G:\\\\AIHub\\\\Codex测试1\\\\node_modules\\\\electron\\\\dist\\\\electron.exe -e \\\\\"const {app} = require\\('electron'\\); console.log\\(typeof app\\);\\\\\"\")",
+      "Bash(ELECTRON_RUN_AS_NODE=0 \"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" -e \"const {app} = require\\('electron'\\); console.log\\(typeof app, app ? 'OK' : 'FAIL'\\);\")",
+      "Bash(unset ELECTRON_RUN_AS_NODE)",
+      "Bash(export ELECTRON_RUN_AS_NODE=0)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE \"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" -e \"console.log\\(typeof require\\('electron'\\).app\\)\")",
+      "Bash(env -u ELECTRON_RUN_AS_NODE \"G:/AIHub/Codex测试1/node_modules/electron/dist/electron.exe\" \"G:/AIHub/Codex测试1/dist-electron/main.js\")",
+      "Bash(taskkill //F //IM electron.exe)",
+      "Bash(taskkill //F //IM \"绝区零抽卡分析工具.exe\")",
+      "Bash(sed 's/#.*//')",
+      "Read(//tmp/**)",
+      "Bash(npx asar *)",
+      "Bash(grep -E \"^\\\\\\\\\\\\\\\\dist\")",
+      "Bash(grep -E \"^\\\\\\\\\\\\\\\\dist-electron\")",
+      "Bash(grep -v \"^$\")"
+    ]
+  }
+}
