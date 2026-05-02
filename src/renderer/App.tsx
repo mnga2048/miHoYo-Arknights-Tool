@@ -181,39 +181,29 @@ function CharAvatar({ name, rankType, gameId, itemId, size = 32 }: { name: strin
 
   const getAvatarUrls = () => {
     if (gameId === 'arknights' && itemId) {
-      return [
-        // PRTS Wiki (优先，国内访问快)
-        `https://prts.wiki/images/${itemId}.png`,
-        // Aceship GitHub (备用)
-        `https://gh-proxy.com/https://raw.githubusercontent.com/Aceship/An-Tarball/master/images/avatars/${itemId}.png`,
-        // 原始 GitHub
-        `https://raw.githubusercontent.com/Aceship/An-Tarball/master/images/avatars/${itemId}.png`
-      ];
+      const jsdelivrUrl = `https://cdn.jsdelivr.net/gh/yuanyan3060/ArknightsGameResource@main/avatar/${itemId}.png`;
+      const githubUrl = `https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/${itemId}.png`;
+      return [jsdelivrUrl, githubUrl];
     }
+
     if (gameId === 'genshin' && itemId) {
-      return [
-        // B站 PatchWiki (国内优先)
-        `https://patchwiki.biligame.com/images/genshinimpact/${itemId}.png`,
-        // Enka Network
-        `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
-      ];
+      const officialUrl = `https://act.hoyoverse.com/hk4e/e20200928calculate/avatar/icon_w_assets/UI_AvatarIcon_${itemId}.png`;
+      const enkaUrl = `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`;
+      return [officialUrl, enkaUrl];
     }
+
     if (gameId === 'starrail' && itemId) {
-      return [
-        // B站 PatchWiki
-        `https://patchwiki.biligame.com/images/starrail/${itemId}.png`,
-        // Enka Network
-        `https://enka.network/ui/${itemId}.png`
-      ];
+      const officialUrl = `https://act.hoyoverse.com/sr/event/e20230111calculate/avatar/icon_w_assets/${itemId}.png`;
+      const enkaUrl = `https://enka.network/ui/${itemId}.png`;
+      return [officialUrl, enkaUrl];
     }
+
     if (gameId === 'zzz' && itemId) {
-      return [
-        // B站 PatchWiki
-        `https://patchwiki.biligame.com/images/zenlesszonezero/${itemId}.png`,
-        // Enka Network
-        `https://enka.network/ui/${itemId}.png`
-      ];
+      const officialUrl = `https://act.hoyoverse.com/zzz/event/e20240601calculate/avatar/icon_w_assets/${itemId}.png`;
+      const enkaUrl = `https://enka.network/ui/${itemId}.png`;
+      return [officialUrl, enkaUrl];
     }
+
     return [];
   };
 
@@ -523,7 +513,7 @@ function App() {
                   <div className={`s-hit-chart ${hitVertical ? 'vertical' : ''}`}>
                     {sHitList.length ? sHitList.map((hit, i) => (
                       <div className="s-hit-item" key={`${hit.name}-${i}`}>
-                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={24} />
+                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={40} />
                         <b>{hit.pity}</b>
                         <div className="s-hit-bar-wrap"><div className="s-hit-bar" style={{ height: `${Math.max(8, (hit.pity / maxPity) * 100)}%` }} /></div>
                         <span className="s-hit-name">{hit.name}</span>
@@ -547,7 +537,7 @@ function App() {
                     <div className={`interval-chart ${intervalVertical ? 'vertical' : ''}`}>
                       {sortedIntervals.length ? sortedIntervals.map((item, i) => (
                         <div className="interval-item" key={`${item.pity}-${i}`}>
-                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={24} />
+                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={40} />
                           <b>{item.pity}</b>
                           <div className="interval-bar-wrap"><div className="interval-bar" style={{ height: `${Math.max(8, (item.pity / (poolPityMap[cs.poolType] ?? game.pityCap)) * 100)}%` }} /></div>
                           <span className="interval-name">{item.name}</span>
@@ -567,7 +557,7 @@ function App() {
                   <tbody>
                     {visibleRecords.slice(0, 500).map((r) => (
                       <tr key={recordKey(r)} className={`rank-${r.rankType.toLowerCase()}`}>
-                        <td>{r.time}</td><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><CharAvatar name={r.name} rankType={r.rankType} gameId={game.id} itemId={r.itemId ?? ''} size={24} /><span>{r.name}</span></div></td><td>{rankDisplay(r.rankType, game.id)}</td><td>{r.itemType}</td><td>{r.poolName}</td><td>{r.uid}</td>
+                        <td>{r.time}</td><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><CharAvatar name={r.name} rankType={r.rankType} gameId={game.id} itemId={r.itemId ?? ''} size={40} /><span>{r.name}</span></div></td><td>{rankDisplay(r.rankType, game.id)}</td><td>{r.itemType}</td><td>{r.poolName}</td><td>{r.uid}</td>
                       </tr>
                     ))}
                   </tbody>
