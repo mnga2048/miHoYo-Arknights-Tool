@@ -2,12 +2,12 @@
   "name": "zzz-gacha-analyzer",
   "version": "0.1.0",
   "private": true,
-  "description": "绝区零抽卡记录分析工具",
+  "description": "米+舟抽卡记录分析工具",
   "author": "AIHub",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://127.0.0.1:5173 && cross-env ELECTRON_RUN_AS_NODE= electron .\"",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "build": "vite build && tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder --win nsis",
     "preview": "vite preview --host 127.0.0.1"
@@ -27,8 +27,8 @@
     "wait-on": "^8.0.0"
   },
   "build": {
-    "appId": "com.local.zzzgachaanalyzer",
-    "productName": "绝区零抽卡分析工具",
+    "appId": "com.local.mizhougachaanalyzer",
+    "productName": "米+舟抽卡分析工具",
     "directories": {
       "output": "release"
     },

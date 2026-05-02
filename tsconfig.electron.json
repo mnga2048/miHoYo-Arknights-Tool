@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node", "electron"]
   },
-  "include": ["src/launcher.ts", "src/main.ts", "src/preload.ts", "src/arknights-preload.ts", "src/shared/**/*.ts"]
+  "include": ["src/main.ts", "src/preload.ts", "src/arknights-preload.ts", "src/shared/**/*.ts"]
 }

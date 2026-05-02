@@ -176,26 +176,67 @@ function SortBtn({ asc, onToggle }: { asc: boolean; onToggle: () => void }) {
 }
 
 function CharAvatar({ name, rankType, gameId, itemId, size = 32 }: { name: string; rankType: RankType; gameId: string; itemId: string; size?: number }) {
-  const url = gameId === 'arknights' && itemId
-    ? `https://gh-proxy.com/https://raw.githubusercontent.com/Aceship/An-Tarball/master/images/avatars/${itemId}.png`
-    : gameId === 'genshin' && itemId
-    ? `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
-    : gameId === 'starrail' && itemId
-    ? `https://enka.network/ui/${itemId}.png`
-    : gameId === 'zzz' && itemId
-    ? `https://enka.network/ui/${itemId}.png`
-    : null;
   const [imgErr, setImgErr] = React.useState(false);
+  const [imgSrcIndex, setImgSrcIndex] = React.useState(0);
+
+  const getAvatarUrls = () => {
+    if (gameId === 'arknights' && itemId) {
+      return [
+        // PRTS Wiki (优先，国内访问快)
+        `https://prts.wiki/images/${itemId}.png`,
+        // Aceship GitHub (备用)
+        `https://gh-proxy.com/https://raw.githubusercontent.com/Aceship/An-Tarball/master/images/avatars/${itemId}.png`,
+        // 原始 GitHub
+        `https://raw.githubusercontent.com/Aceship/An-Tarball/master/images/avatars/${itemId}.png`
+      ];
+    }
+    if (gameId === 'genshin' && itemId) {
+      return [
+        // B站 PatchWiki (国内优先)
+        `https://patchwiki.biligame.com/images/genshinimpact/${itemId}.png`,
+        // Enka Network
+        `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
+      ];
+    }
+    if (gameId === 'starrail' && itemId) {
+      return [
+        // B站 PatchWiki
+        `https://patchwiki.biligame.com/images/starrail/${itemId}.png`,
+        // Enka Network
+        `https://enka.network/ui/${itemId}.png`
+      ];
+    }
+    if (gameId === 'zzz' && itemId) {
+      return [
+        // B站 PatchWiki
+        `https://patchwiki.biligame.com/images/zenlesszonezero/${itemId}.png`,
+        // Enka Network
+        `https://enka.network/ui/${itemId}.png`
+      ];
+    }
+    return [];
+  };
+
+  const urls = getAvatarUrls();
+  const url = urls[imgSrcIndex] || null;
+  const borderColor = rankType === 'S' ? '#e3ff37' : rankType === 'A' ? '#c78aff' : '#4f8cff';
   const bg = rankType === 'S'
     ? 'linear-gradient(145deg, rgba(227, 255, 55, 0.15), rgba(168, 194, 0, 0.08))'
     : rankType === 'A'
     ? 'linear-gradient(145deg, rgba(199, 138, 255, 0.15), rgba(139, 92, 246, 0.08))'
     : 'linear-gradient(145deg, rgba(79, 140, 255, 0.15), rgba(59, 130, 246, 0.08))';
   const fg = rankType === 'S' ? '#e3ff37' : rankType === 'A' ? '#c78aff' : '#4f8cff';
-  const borderColor = rankType === 'S' ? '#e3ff37' : rankType === 'A' ? '#c78aff' : '#4f8cff';
+
+  const handleImgError = () => {
+    if (imgSrcIndex < urls.length - 1) {
+      setImgSrcIndex(imgSrcIndex + 1);
+    } else {
+      setImgErr(true);
+    }
+  };
 
   if (url && !imgErr) {
-    return <img key={itemId} className="char-avatar" style={{ width: size, height: size, border: `2px solid ${borderColor}` }} src={url} alt="" onError={() => setImgErr(true)} />;
+    return <img key={itemId} className="char-avatar" style={{ width: size, height: size, border: `2px solid ${borderColor}` }} src={url} alt="" onError={handleImgError} />;
   }
   return (
     <div key={itemId} className="char-avatar avatar-fb" style={{
@@ -225,21 +266,21 @@ function MiniBar({ label, value, max, tone }: { label: string; value: number; ma
   );
 }
 
-function PoolPanel({ stats, pityCap }: { stats: PoolStats; pityCap: number }) {
+function PoolPanel({ stats, pityCap, game }: { stats: PoolStats; pityCap: number; game: GameConfig }) {
   const progress = Math.min(100, Math.round((stats.currentPity / pityCap) * 100));
   const displayName = stats.poolName && stats.poolName !== stats.poolType ? stats.poolName : (POOL_LABELS[stats.poolType] || stats.poolType);
   return (
     <section className="pool-panel">
       <div className="pool-panel-head">
         <div><h3>{displayName}</h3><p>{stats.total ? `最近 ${stats.latestS?.name ?? '暂无'}` : '暂无记录'}</p></div>
-        <b>{stats.total} {currentGame.pullUnit}</b>
+        <b>{stats.total} {game.pullUnit}</b>
       </div>
       <div className="pity-ring" style={{ '--progress': `${progress}%` } as React.CSSProperties}>
-        <strong>{stats.currentPity}</strong><span>距上次{currentGame.sUnit}</span>
+        <strong>{stats.currentPity}</strong><span>距上次{game.sUnit}</span>
       </div>
       <div className="pool-grid">
-        <span>{stats.sCount} 次{currentGame.sUnit}</span>
-        <span>{stats.aCount} 次{currentGame.id === 'arknights' ? '5星' : 'A'}</span>
+        <span>{stats.sCount} 次{game.sUnit}</span>
+        <span>{stats.aCount} 次{game.id === 'arknights' ? '5星' : 'A'}</span>
         <span>平均 {stats.averageS || '-'}</span>
         <span>最非 {stats.worstS ?? '-'}</span>
       </div>
@@ -261,6 +302,7 @@ function App() {
   const [hitSortAsc, setHitSortAsc] = useState(false);
   const [intervalSortAsc, setIntervalSortAsc] = useState(false);
   const [hitVertical, setHitVertical] = useState(false);
+  const [intervalVertical, setIntervalVertical] = useState(false);
 
   currentGame = getGameConfig(activeGameId);
   const game = currentGame;
@@ -445,16 +487,28 @@ function App() {
                 <div className="panel wide">
                   <div className="panel-head"><h3>月度趋势</h3><span>近 8 个月</span></div>
                   <div className="month-chart">
-                    {monthly.length ? monthly.map(([month, value]) => (
-                      <div className="month-item" key={month}>
-                        <div className="month-column">
-                          <span className="month-s" style={{ height: `${(value.s / maxMonth) * 100}%` }} />
-                          <span className="month-a" style={{ height: `${(value.a / maxMonth) * 100}%` }} />
-                          <span className="month-total" style={{ height: `${(value.total / maxMonth) * 100}%` }} />
+                    {monthly.length ? monthly.map(([month, value]) => {
+                      const sPct = value.total ? (value.s / value.total) * 100 : 0;
+                      const aPct = value.total ? (value.a / value.total) * 100 : 0;
+                      const bPct = value.total ? ((value.total - value.s - value.a) / value.total) * 100 : 0;
+                      const sDeg = (sPct / 100) * 360;
+                      const aDeg = (aPct / 100) * 360;
+                      const bDeg = (bPct / 100) * 360;
+                      return (
+                        <div className="month-item" key={month}>
+                          <svg className="month-ring" viewBox="0 0 36 36">
+                            <circle cx="18" cy="18" r="15.9" fill="none" stroke="#2a2d36" strokeWidth="3" />
+                            {sDeg > 0 && <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e3ff37" strokeWidth="3" strokeDasharray={`${sDeg} ${360 - sDeg}`} strokeDashoffset="25" />}
+                            {aDeg > 0 && <circle cx="18" cy="18" r="15.9" fill="none" stroke="#c78aff" strokeWidth="3" strokeDasharray={`${aDeg} ${360 - aDeg}`} strokeDashoffset={`${25 - sDeg}`} />}
+                            {bDeg > 0 && <circle cx="18" cy="18" r="15.9" fill="none" stroke="#4f8cff" strokeWidth="3" strokeDasharray={`${bDeg} ${360 - bDeg}`} strokeDashoffset={`${25 - sDeg - aDeg}`} />}
+                          </svg>
+                          <div className="month-info">
+                            <small>{month.slice(5)}</small>
+                            <b>{value.total}</b>
+                          </div>
                         </div>
-                        <small>{month.slice(5)}</small>
-                      </div>
-                    )) : <div className="empty">导入记录后显示趋势</div>}
+                      );
+                    }) : <div className="empty">导入记录后显示趋势</div>}
                   </div>
                 </div>
                 <div className="panel">
@@ -463,13 +517,13 @@ function App() {
                   <MiniBar label={game.id === 'arknights' ? '5 星' : 'A 级'} value={aCount} max={total} tone="a" />
                   <MiniBar label={game.id === 'arknights' ? '4 星' : 'B 级'} value={Math.max(0, total - sCount - aCount)} max={total} tone="b" />
                 </div>
-                {stats.map((s) => <PoolPanel key={s.poolType} stats={s} pityCap={poolPityMap[s.poolType] ?? game.pityCap} />)}
+                {stats.map((s) => <PoolPanel key={s.poolType} stats={s} pityCap={poolPityMap[s.poolType] ?? game.pityCap} game={game} />)}
                 <div className="panel wide s-hit-panel">
                   <div className="panel-head"><h3>{game.sUnit}出货记录</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="layout-btn" onClick={() => setHitVertical(!hitVertical)} title={hitVertical ? '切换到横向' : '切换到竖向'}>{hitVertical ? '☰' : '☷'}</button><SortBtn asc={hitSortAsc} onToggle={() => setHitSortAsc(!hitSortAsc)} /><span>共 {sHitList.length} 次</span></div></div>
                   <div className={`s-hit-chart ${hitVertical ? 'vertical' : ''}`}>
                     {sHitList.length ? sHitList.map((hit, i) => (
                       <div className="s-hit-item" key={`${hit.name}-${i}`}>
-                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={36} />
+                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={24} />
                         <b>{hit.pity}</b>
                         <div className="s-hit-bar-wrap"><div className="s-hit-bar" style={{ height: `${Math.max(8, (hit.pity / maxPity) * 100)}%` }} /></div>
                         <span className="s-hit-name">{hit.name}</span>
@@ -487,13 +541,13 @@ function App() {
               const sortedIntervals = intervalSortAsc ? [...cs.sIntervals].reverse() : cs.sIntervals;
               return (
                 <section className="dashboard-grid pool-view">
-                  <PoolPanel stats={cs} pityCap={poolPityMap[cs.poolType] ?? game.pityCap} />
+                  <PoolPanel stats={cs} pityCap={poolPityMap[cs.poolType] ?? game.pityCap} game={game} />
                   <div className="panel wide">
-                    <div className="panel-head"><h3>{game.sUnit}出货间隔</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={intervalSortAsc} onToggle={() => setIntervalSortAsc(!intervalSortAsc)} /><span>按时间顺序</span></div></div>
-                    <div className="interval-chart">
+                    <div className="panel-head"><h3>{game.sUnit}出货间隔</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><button className="layout-btn" onClick={() => setIntervalVertical(!intervalVertical)} title={intervalVertical ? '切换到横向' : '切换到竖向'}>{intervalVertical ? '☰' : '☷'}</button><SortBtn asc={intervalSortAsc} onToggle={() => setIntervalSortAsc(!intervalSortAsc)} /><span>按时间顺序</span></div></div>
+                    <div className={`interval-chart ${intervalVertical ? 'vertical' : ''}`}>
                       {sortedIntervals.length ? sortedIntervals.map((item, i) => (
                         <div className="interval-item" key={`${item.pity}-${i}`}>
-                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={36} />
+                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={24} />
                           <b>{item.pity}</b>
                           <div className="interval-bar-wrap"><div className="interval-bar" style={{ height: `${Math.max(8, (item.pity / (poolPityMap[cs.poolType] ?? game.pityCap)) * 100)}%` }} /></div>
                           <span className="interval-name">{item.name}</span>

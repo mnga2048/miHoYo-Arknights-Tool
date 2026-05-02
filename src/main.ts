@@ -46,7 +46,17 @@ function createWindow() {
   win.webContents.on('did-fail-load', (_event, errorCode, errorDesc) => {
     console.error('Failed to load:', errorCode, errorDesc);
   });
+  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
+  });
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer process gone:', details);
+  });
+  win.webContents.on('did-finish-load', () => {
+    console.log('Renderer finished loading');
+  });
 
+  
   if (isDev) {
     void win.loadURL('http://127.0.0.1:5173');
   } else {
