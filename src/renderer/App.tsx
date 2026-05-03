@@ -195,36 +195,52 @@ function CharAvatar({ name, rankType, gameId, itemId, size = 32 }: { name: strin
   const [imgErr, setImgErr] = React.useState(false);
   const [imgSrcIndex, setImgSrcIndex] = React.useState(0);
 
+const GENSHIN_EN_NAME: Record<string, string> = {
+  '安柏': 'Ambor', '凯亚': 'Kaeya', '丽莎': 'Lisa', '芭芭拉': 'Barbara',
+  '香菱': 'Xiangling', '北斗': 'Beidou', '行秋': 'Xingqiu', '凝光': 'Ningguang',
+  '菲谢尔': 'Fischl', '诺艾尔': 'Noelle', '班尼特': 'Bennett', '重云': 'Chongyun',
+  '砂糖': 'Sucrose', '琴': 'Qin', '刻晴': 'Keqing', '迪卢克': 'Diluc',
+  '七七': 'Qiqi', '温迪': 'Venti', '可莉': 'Klee', '迪奥娜': 'Diona',
+  '钟离': 'Zhongli', '阿贝多': 'Albedo', '甘雨': 'Ganyu', '魈': 'Xiao',
+  '胡桃': 'HuTao', '优菈': 'Eula', '枫原万叶': 'Kazuha', '神里绫华': 'Ayaka',
+  '宵宫': 'Yoimiya', '珊瑚宫心海': 'Kokomi', '雷电将军': 'Shougun',
+  '九条裟罗': 'Sara', '荒泷一斗': 'Itto', '八重神子': 'YaeMiko',
+  '神里绫人': 'Ayato', '鹿野院平藏': 'Heizou', '夜兰': 'Yelan',
+  '提纳里': 'Tighnari', '纳西妲': 'Nahida', '妮露': 'Nilou', '赛诺': 'Cyno',
+  '流浪者': 'Wanderer', '珐露珊': 'Faruzan', '莱依拉': 'Layla',
+  '艾尔海森': 'Alhaitham', '迪希雅': 'Dehya', '米卡': 'Mika', '申鹤': 'Shenhe',
+  '卡维': 'Kaveh', '绮良良': 'Kirara', '琳妮特': 'Lynette', '林尼': 'Lyney',
+  '菲米尼': 'Freminet', '那维莱特': 'Neuvillette', '莱欧斯利': 'Wriothesley',
+  '芙宁娜': 'Furina', '娜维娅': 'Navia', '夏洛蒂': 'Charlotte',
+  '嘉明': 'Gaming', '闲云': 'Xianyun', '千织': 'Chiori', '阿蕾奇诺': 'Arlecchino',
+  '克洛琳德': 'Clorinde', '赛索斯': 'Sethos', '艾梅莉埃': 'Emilie',
+  '希格雯': 'Sigewinne', '玛拉妮': 'Mualani', '基尼奇': 'Kinich',
+  '卡齐娜': 'Kachina', '希诺宁': 'Xilonen', '烟绯': 'Yanfei',
+  '辛焱': 'Xinyan', '早柚': 'Sayu', '托马': 'Thoma', '五郎': 'Gorou',
+  '久岐忍': 'Shinobu', '罗莎莉亚': 'Rosaria', '云堇': 'YunJin',
+  '瑶瑶': 'Yaoyao', '柯莱': 'Collei', '多莉': 'Dori', '坎蒂丝': 'Candace',
+  '爱可菲': 'Ifa', '伊安珊': 'Iansan', '梦见月瑞希': 'Mizuki',
+  '夏沃蕾': 'Chevreuse', '欧洛伦': 'Ororon', '丝柯克': 'Skirk',
+  '哥伦比娅': 'Columbina', '伊法': 'Ifa', '菈乌玛': 'Lauma',
+};
+
 const getAvatarUrls = () => {
-  // 明日方舟 —— jsDelivr 加速的 GitHub 资源
   if (gameId === 'arknights' && itemId) {
     const jsdelivrUrl = `https://cdn.jsdelivr.net/gh/yuanyan3060/ArknightsGameResource@main/avatar/${itemId}.png`;
     const githubUrl = `https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/${itemId}.png`;
     return [jsdelivrUrl, githubUrl];
   }
 
-  // 原神 —— Enka Network（仅此一条路）
-  if (gameId === 'genshin' && itemId) {
-    return [
-      `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`,
-      `https://enka.network/ui/UI_AvatarIcon_Side_${itemId}.png`
-    ];
+  if (gameId === 'genshin' && name) {
+    const en = GENSHIN_EN_NAME[name];
+    if (en) {
+      return [`https://enka.network/ui/UI_AvatarIcon_${en}.png`];
+    }
+    return [];
   }
 
-  // 崩坏：星穹铁道 —— Enka Network
   if (gameId === 'starrail' && itemId) {
-    return [
-      `https://enka.network/ui/${itemId}.png`,
-      `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
-    ];
-  }
-
-  // 绝区零 —— Enka Network
-  if (gameId === 'zzz' && itemId) {
-    return [
-      `https://enka.network/ui/${itemId}.png`,
-      `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
-    ];
+    return [`https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/${itemId}.png`];
   }
 
   return [];
