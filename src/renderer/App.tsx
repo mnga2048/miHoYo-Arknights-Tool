@@ -113,13 +113,17 @@ function mergeRecords(existing: GachaRecord[], incoming: GachaRecord[]): { recor
   return { records: [...map.values()].sort((a, b) => b.time.localeCompare(a.time)), result: { imported, skipped, total: incoming.length } };
 }
 
-function analyzePool(records: GachaRecord[], poolType: PoolType): PoolStats {
-  const pool = records.filter((r) => r.poolType === poolType).sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+function analyzePool(records: GachaRecord[], poolType: PoolType, pityKey: 'poolType' | 'poolName' = 'poolType', crossPool = false): PoolStats {
+  const pool = records.filter((r) => r.poolType === poolType).sort(stableSort);
   const firstPoolName = pool.find((r) => r.poolName)?.poolName ?? '';
   let sinceS = 0;
-  const intervals: number[] = [];
+  let lastBanner = '';
+  const intervals: { pity: number; name: string; itemId: string }[] = [];
   let latestS: GachaRecord | null = null;
   pool.forEach((r) => {
+    const banner = crossPool ? '__all__' : (pityKey === 'poolName' ? r.poolName : r.poolType);
+    if (pityKey === 'poolName' && !crossPool && banner !== lastBanner && lastBanner !== '') sinceS = 0;
+    lastBanner = banner;
     sinceS++;
     if (r.rankType === 'S') { intervals.push({ pity: sinceS, name: r.name, itemId: r.itemId ?? '' }); sinceS = 0; latestS = r; }
   });
@@ -147,14 +151,23 @@ function buildMonthly(records: GachaRecord[]) {
   return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-8);
 }
 
-function buildSHitList(records: GachaRecord[]): SHit[] {
+function stableSort(a: GachaRecord, b: GachaRecord): number {
+  const tc = a.time.localeCompare(b.time);
+  if (tc !== 0) return tc;
+  const pa = Number(a.id.split('_').pop()) || 0;
+  const pb = Number(b.id.split('_').pop()) || 0;
+  return pa - pb;
+}
+
+function buildSHitList(records: GachaRecord[], pityKey: 'poolType' | 'poolName' = 'poolType', crossPool = false): SHit[] {
   const hits: SHit[] = [];
   const byPool: Record<string, number> = {};
-  records.sort((a, b) => Date.parse(a.time) - Date.parse(b.time)).forEach((r) => {
-    byPool[r.poolType] = (byPool[r.poolType] ?? 0) + 1;
+  [...records].sort(stableSort).forEach((r) => {
+    const key = crossPool ? '__all__' : (pityKey === 'poolName' ? r.poolName : r.poolType);
+    byPool[key] = (byPool[key] ?? 0) + 1;
     if (r.rankType === 'S') {
-      hits.push({ name: r.name, pity: byPool[r.poolType], time: r.time, poolName: r.poolName, itemId: r.itemId ?? '' });
-      byPool[r.poolType] = 0;
+      hits.push({ name: r.name, pity: byPool[key], time: r.time, poolName: r.poolName, itemId: r.itemId ?? '' });
+      byPool[key] = 0;
     }
   });
   return hits.reverse();
@@ -317,13 +330,15 @@ function App() {
     }
     return { exclusive: 90, 'w-engine': 80, bangboo: 80, standard: 90, 'standard-weapon': 90, other: 90, weapon: 80, novice: 20, chronicled: 90, joint: 90, festival: 90 };
   }, [game.id]);
-  const stats = useMemo(() => poolTypes.map((pt) => analyzePool(records, pt)), [records, poolTypes]);
+  const pityKey = 'poolType';
+  const crossPool = game.id === 'arknights';
+  const stats = useMemo(() => poolTypes.map((pt) => analyzePool(records, pt, pityKey, crossPool)), [records, poolTypes, pityKey, crossPool]);
   const total = records.length;
   const sCount = records.filter((r) => r.rankType === 'S').length;
   const aCount = records.filter((r) => r.rankType === 'A').length;
   const monthly = useMemo(() => buildMonthly(records), [records]);
   const maxMonth = Math.max(1, ...monthly.map(([, v]) => v.total));
-  const sHitListRaw = useMemo(() => buildSHitList(records), [records]);
+  const sHitListRaw = useMemo(() => buildSHitList(records, pityKey, crossPool), [records, pityKey, crossPool]);
   const sHitList = useMemo(() => hitSortAsc ? [...sHitListRaw].reverse() : sHitListRaw, [sHitListRaw, hitSortAsc]);
   const maxPity = Math.max(1, ...sHitList.map((h) => h.pity));
   const overallAvgPity = sHitListRaw.length > 0
@@ -332,7 +347,7 @@ function App() {
 
   const visibleRecords = useMemo(() => {
     const filtered = records.filter((r) => `${r.name}${r.itemType}${r.poolName}${r.uid}`.includes(filter.trim()));
-    return sortAsc ? [...filtered].sort((a, b) => a.time.localeCompare(b.time)) : [...filtered].sort((a, b) => b.time.localeCompare(a.time));
+    return [...filtered].sort(sortAsc ? stableSort : (a, b) => -stableSort(a, b) || 0);
   }, [records, filter, sortAsc]);
 
   const loadGameData = useCallback(async (gid: string) => {

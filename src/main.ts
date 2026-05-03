@@ -443,6 +443,7 @@ async function fetchArknightsRecordsDirectly(hgToken: string, progress: (msg: st
 
     let lastPos: number | undefined;
     let lastGachaTs: string | undefined;
+    const seenKeys = new Set<string>();
 
     while (true) {
       let url = `https://ak.hypergryph.com/user/api/inquiry/gacha/history?uid=${encodeURIComponent(uid)}&category=${encodeURIComponent(cat.id)}&size=10`;
@@ -456,16 +457,21 @@ async function fetchArknightsRecordsDirectly(hgToken: string, progress: (msg: st
       if (list.length === 0) break;
 
       for (const item of list) {
+        const charId = String(item.charId ?? '');
+        const gachaTs = String(item.gachaTs ?? '');
+        const dedupKey = `${charId}_${gachaTs}`;
+        if (seenKeys.has(dedupKey)) continue;
+        seenKeys.add(dedupKey);
         allRecords.push({
-          id: `${item.poolId ?? ''}_${item.charId ?? ''}_${item.gachaTs ?? ''}_${item.pos ?? ''}`,
+          id: `${item.poolId ?? ''}_${charId}_${gachaTs}_${item.pos ?? ''}`,
           uid,
-          time: formatArknightsTs(item.gachaTs),
+          time: formatArknightsTs(gachaTs),
           name: String(item.charName ?? item.charId ?? '未知'),
           rankType: game.rankMap[String(item.rarity)] ?? 'B' as RankType,
-          itemType: Number(item.rarity) >= 4 ? '角色' : '材料',
+          itemType: Number(item.rarity) >= 3 ? '角色' : '材料',
           poolType: mapArknightsPoolType(cat.name),
           poolName: String(item.poolName ?? item.poolId ?? '未知').replace(/\n/g, ' '),
-          itemId: String(item.charId ?? '')
+          itemId: charId
         });
       }
 
