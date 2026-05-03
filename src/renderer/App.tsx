@@ -5,6 +5,7 @@ import { POOL_LABELS } from '../shared/types';
 import { GAMES, getGameConfig } from '../shared/games';
 import type { GameConfig } from '../shared/games';
 import GENSHIN_ICONS from '../shared/genshin-icons.json';
+import ZZZ_ICONS from '../shared/zzz-icons.json';
 import './styles.css';
 
 type Tab = 'overview' | 'records' | 'settings';
@@ -198,6 +199,12 @@ function CharAvatar({ name, rankType, gameId, itemId, itemType, size = 32 }: { n
   const [imgSrcIndex, setImgSrcIndex] = React.useState(0);
 
 const getAvatarUrls = () => {
+  if (gameId === 'zzz' && itemId) {
+    const icon = ZZZ_ICONS[itemId];
+    if (icon) return [`https://enka.network${icon}`];
+    return [];
+  }
+
   if (gameId === 'arknights' && itemId) {
     const jsdelivrUrl = `https://cdn.jsdelivr.net/gh/yuanyan3060/ArknightsGameResource@main/avatar/${itemId}.png`;
     const githubUrl = `https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/${itemId}.png`;
