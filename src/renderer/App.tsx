@@ -64,7 +64,7 @@ function normalizeRecord(raw: Record<string, unknown>, index: number): GachaReco
     time: String(raw.time ?? raw.datetime ?? raw.date ?? new Date().toISOString().slice(0, 19).replace('T', ' ')),
     name: String(raw.name ?? raw.item_name ?? raw.itemName ?? '未知物品'),
     rankType,
-    itemType: String(raw.itemType ?? raw.item_type ?? raw.type ?? (rankType === 'B' ? '材料' : '未知')),
+    itemType: String(raw.itemType ?? raw.item_type ?? raw.type ?? '未知'),
     poolType,
     poolName: String(raw.poolName ?? raw.pool_name ?? POOL_LABELS[poolType]),
     itemId: String(raw.itemId ?? raw.item_id ?? raw.charId ?? '')
@@ -157,9 +157,7 @@ function buildMonthly(records: GachaRecord[]) {
 function stableSort(a: GachaRecord, b: GachaRecord): number {
   const tc = a.time.localeCompare(b.time);
   if (tc !== 0) return tc;
-  const pa = Number(a.id.split('_').pop()) || 0;
-  const pb = Number(b.id.split('_').pop()) || 0;
-  return pa - pb;
+  return a.id.localeCompare(b.id);
 }
 
 function buildSHitList(records: GachaRecord[], pityKey: 'poolType' | 'poolName' = 'poolType', crossPool = false): SHit[] {
