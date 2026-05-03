@@ -2,6 +2,7 @@ import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import https from 'node:https';
+import type { IncomingMessage } from 'node:http';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import type { GachaRecord, StoredData, PoolType, RankType } from './shared/types.js';
 import { getGameConfig } from './shared/games.js';
@@ -120,26 +121,40 @@ ipcMain.handle('data:export', async (_e, gameId: string, records: GachaRecord[])
   return true;
 });
 
-function httpsGet(url: string): Promise<string> {
+interface HttpResult { statusCode: number; body: string; setCookie: string }
+
+function httpRequest(method: string, url: string, body: string | null, extraHeaders: Record<string, string> = {}): Promise<HttpResult> {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    const parsed = new URL(url);
+    const headers: Record<string, string> = { ...extraHeaders };
+    if (body) headers['Content-Type'] = 'application/json;charset=utf-8';
+    const cb = (res: IncomingMessage) => {
       if (res.statusCode === 301 || res.statusCode === 302) {
         const loc = res.headers.location;
-        if (loc) { httpsGet(loc).then(resolve).catch(reject); return; }
-      }
-      if (res.statusCode && res.statusCode >= 400) {
-        const chunks: Buffer[] = [];
-        res.on('data', (c: Buffer) => chunks.push(c));
-        res.on('end', () => reject(new Error(`HTTP ${res.statusCode}: ${Buffer.concat(chunks).toString('utf8').slice(0, 200)}`)));
-        res.on('error', reject);
-        return;
+        if (loc) { httpRequest(method, loc, body, extraHeaders).then(resolve).catch(reject); return; }
       }
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));
-      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      res.on('end', () => resolve({ statusCode: res.statusCode || 0, body: Buffer.concat(chunks).toString('utf8'), setCookie: (res.headers['set-cookie'] as string[] || []).join('; ') }));
       res.on('error', reject);
-    }).on('error', reject);
+    };
+    const req = https.request({ hostname: parsed.hostname, port: 443, path: parsed.pathname + parsed.search, method, headers }, cb);
+    req.on('error', reject);
+    if (body) req.write(body);
+    req.end();
   });
+}
+
+async function httpsGet(url: string): Promise<string> {
+  const res = await httpRequest('GET', url, null);
+  if (res.statusCode >= 400) throw new Error(`HTTP ${res.statusCode}: ${res.body.slice(0, 200)}`);
+  return res.body;
+}
+
+async function httpsJsonRequest(method: string, url: string, body: string | null, extraHeaders: Record<string, string> = {}) {
+  const res = await httpRequest(method, url, body, extraHeaders);
+  try { return { statusCode: res.statusCode, data: JSON.parse(res.body), setCookie: res.setCookie }; }
+  catch { throw new Error(`HTTP ${res.statusCode}: ${res.body.slice(0, 200)}`); }
 }
 
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
@@ -348,32 +363,6 @@ function cleanupArknights() {
   arknightsWin = null;
   arknightsResolve = null;
   arknightsProgress = null;
-}
-
-function httpsJsonRequest(method: string, url: string, body: string | null, extraHeaders: Record<string, string> = {}): Promise<{ statusCode: number; data: any; setCookie: string }> {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const headers: Record<string, string> = { ...extraHeaders };
-    if (body) headers['Content-Type'] = 'application/json;charset=utf-8';
-    const req = https.request({ hostname: parsed.hostname, port: 443, path: parsed.pathname + parsed.search, method, headers }, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        const loc = res.headers.location;
-        if (loc) { httpsJsonRequest(method, loc, body, extraHeaders).then(resolve).catch(reject); return; }
-      }
-      const chunks: Buffer[] = [];
-      res.on('data', (c: Buffer) => chunks.push(c));
-      res.on('end', () => {
-        const raw = Buffer.concat(chunks).toString('utf8');
-        const sc = (res.headers['set-cookie'] as string[] || []).join('; ');
-        try { resolve({ statusCode: res.statusCode || 0, data: JSON.parse(raw), setCookie: sc }); }
-        catch { reject(new Error(`HTTP ${res.statusCode}: ${raw.slice(0, 200)}`)); }
-      });
-      res.on('error', reject);
-    });
-    req.on('error', reject);
-    if (body) req.write(body);
-    req.end();
-  });
 }
 
 async function tryExtractHgToken(session: Electron.Session): Promise<string | null> {

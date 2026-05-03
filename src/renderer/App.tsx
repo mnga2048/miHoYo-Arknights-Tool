@@ -4,6 +4,7 @@ import type { GachaRecord, ImportResult, PoolType, RankType } from '../shared/ty
 import { POOL_LABELS } from '../shared/types';
 import { GAMES, getGameConfig } from '../shared/games';
 import type { GameConfig } from '../shared/games';
+import GENSHIN_EN_NAME from '../shared/genshin-names.json';
 import './styles.css';
 
 type Tab = 'overview' | 'records' | 'settings';
@@ -29,6 +30,7 @@ interface SHit {
   time: string;
   poolName: string;
   itemId: string;
+  itemType: string;
 }
 
 function normalizePool(value: unknown): PoolType {
@@ -113,24 +115,24 @@ function mergeRecords(existing: GachaRecord[], incoming: GachaRecord[]): { recor
   return { records: [...map.values()].sort((a, b) => b.time.localeCompare(a.time)), result: { imported, skipped, total: incoming.length } };
 }
 
-function analyzePool(records: GachaRecord[], poolType: PoolType, pityKey: 'poolType' | 'poolName' = 'poolType', crossPool = false): PoolStats {
-  const pool = records.filter((r) => r.poolType === poolType).sort(stableSort);
+function analyzePool(records: GachaRecord[], poolType: PoolType | '', pityKey: 'poolType' | 'poolName' = 'poolType', crossPool = false): PoolStats {
+  const pool = poolType ? records.filter((r) => r.poolType === poolType).sort(stableSort) : [...records].sort(stableSort);
   const firstPoolName = pool.find((r) => r.poolName)?.poolName ?? '';
   let sinceS = 0;
   let lastBanner = '';
-  const intervals: { pity: number; name: string; itemId: string }[] = [];
+  const intervals: { pity: number; name: string; itemId: string; itemType: string }[] = [];
   let latestS: GachaRecord | null = null;
   pool.forEach((r) => {
     const banner = crossPool ? '__all__' : (pityKey === 'poolName' ? r.poolName : r.poolType);
     if (pityKey === 'poolName' && !crossPool && banner !== lastBanner && lastBanner !== '') sinceS = 0;
     lastBanner = banner;
     sinceS++;
-    if (r.rankType === 'S') { intervals.push({ pity: sinceS, name: r.name, itemId: r.itemId ?? '' }); sinceS = 0; latestS = r; }
+    if (r.rankType === 'S') { intervals.push({ pity: sinceS, name: r.name, itemId: r.itemId ?? '', itemType: r.itemType }); sinceS = 0; latestS = r; }
   });
   const sCount = pool.filter((r) => r.rankType === 'S').length;
   const aCount = pool.filter((r) => r.rankType === 'A').length;
   return {
-    poolType, poolName: firstPoolName || POOL_LABELS[poolType] || poolType,
+    poolType: poolType || 'standard', poolName: firstPoolName || (poolType ? POOL_LABELS[poolType] : '全部寻访') || poolType,
     total: pool.length, sCount, aCount, bCount: pool.length - sCount - aCount,
     currentPity: sinceS,
     averageS: intervals.length ? Math.round((intervals.reduce((s, n) => s + n.pity, 0) / intervals.length) * 10) / 10 : 0,
@@ -166,7 +168,7 @@ function buildSHitList(records: GachaRecord[], pityKey: 'poolType' | 'poolName' 
     const key = crossPool ? '__all__' : (pityKey === 'poolName' ? r.poolName : r.poolType);
     byPool[key] = (byPool[key] ?? 0) + 1;
     if (r.rankType === 'S') {
-      hits.push({ name: r.name, pity: byPool[key], time: r.time, poolName: r.poolName, itemId: r.itemId ?? '' });
+      hits.push({ name: r.name, pity: byPool[key], time: r.time, poolName: r.poolName, itemId: r.itemId ?? '', itemType: r.itemType });
       byPool[key] = 0;
     }
   });
@@ -191,38 +193,9 @@ function SortBtn({ asc, onToggle }: { asc: boolean; onToggle: () => void }) {
   );
 }
 
-function CharAvatar({ name, rankType, gameId, itemId, size = 32 }: { name: string; rankType: RankType; gameId: string; itemId: string; size?: number }) {
+function CharAvatar({ name, rankType, gameId, itemId, itemType, size = 32 }: { name: string; rankType: RankType; gameId: string; itemId: string; itemType?: string; size?: number }) {
   const [imgErr, setImgErr] = React.useState(false);
   const [imgSrcIndex, setImgSrcIndex] = React.useState(0);
-
-const GENSHIN_EN_NAME: Record<string, string> = {
-  '安柏': 'Ambor', '凯亚': 'Kaeya', '丽莎': 'Lisa', '芭芭拉': 'Barbara',
-  '香菱': 'Xiangling', '北斗': 'Beidou', '行秋': 'Xingqiu', '凝光': 'Ningguang',
-  '菲谢尔': 'Fischl', '诺艾尔': 'Noelle', '班尼特': 'Bennett', '重云': 'Chongyun',
-  '砂糖': 'Sucrose', '琴': 'Qin', '刻晴': 'Keqing', '迪卢克': 'Diluc',
-  '七七': 'Qiqi', '温迪': 'Venti', '可莉': 'Klee', '迪奥娜': 'Diona',
-  '钟离': 'Zhongli', '阿贝多': 'Albedo', '甘雨': 'Ganyu', '魈': 'Xiao',
-  '胡桃': 'HuTao', '优菈': 'Eula', '枫原万叶': 'Kazuha', '神里绫华': 'Ayaka',
-  '宵宫': 'Yoimiya', '珊瑚宫心海': 'Kokomi', '雷电将军': 'Shougun',
-  '九条裟罗': 'Sara', '荒泷一斗': 'Itto', '八重神子': 'YaeMiko',
-  '神里绫人': 'Ayato', '鹿野院平藏': 'Heizou', '夜兰': 'Yelan',
-  '提纳里': 'Tighnari', '纳西妲': 'Nahida', '妮露': 'Nilou', '赛诺': 'Cyno',
-  '流浪者': 'Wanderer', '珐露珊': 'Faruzan', '莱依拉': 'Layla',
-  '艾尔海森': 'Alhaitham', '迪希雅': 'Dehya', '米卡': 'Mika', '申鹤': 'Shenhe',
-  '卡维': 'Kaveh', '绮良良': 'Kirara', '琳妮特': 'Lynette', '林尼': 'Lyney',
-  '菲米尼': 'Freminet', '那维莱特': 'Neuvillette', '莱欧斯利': 'Wriothesley',
-  '芙宁娜': 'Furina', '娜维娅': 'Navia', '夏洛蒂': 'Charlotte',
-  '嘉明': 'Gaming', '闲云': 'Xianyun', '千织': 'Chiori', '阿蕾奇诺': 'Arlecchino',
-  '克洛琳德': 'Clorinde', '赛索斯': 'Sethos', '艾梅莉埃': 'Emilie',
-  '希格雯': 'Sigewinne', '玛拉妮': 'Mualani', '基尼奇': 'Kinich',
-  '卡齐娜': 'Kachina', '希诺宁': 'Xilonen', '烟绯': 'Yanfei',
-  '辛焱': 'Xinyan', '早柚': 'Sayu', '托马': 'Thoma', '五郎': 'Gorou',
-  '久岐忍': 'Shinobu', '罗莎莉亚': 'Rosaria', '云堇': 'YunJin',
-  '瑶瑶': 'Yaoyao', '柯莱': 'Collei', '多莉': 'Dori', '坎蒂丝': 'Candace',
-  '爱可菲': 'Ifa', '伊安珊': 'Iansan', '梦见月瑞希': 'Mizuki',
-  '夏沃蕾': 'Chevreuse', '欧洛伦': 'Ororon', '丝柯克': 'Skirk',
-  '哥伦比娅': 'Columbina', '伊法': 'Ifa', '菈乌玛': 'Lauma',
-};
 
 const getAvatarUrls = () => {
   if (gameId === 'arknights' && itemId) {
@@ -240,7 +213,9 @@ const getAvatarUrls = () => {
   }
 
   if (gameId === 'starrail' && itemId) {
-    return [`https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/character/${itemId}.png`];
+    const isLightCone = itemType === '光锥' || itemType?.includes('光锥');
+    const folder = isLightCone ? 'light_cone' : 'character';
+    return [`https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/${folder}/${itemId}.png`];
   }
 
   return [];
@@ -349,6 +324,7 @@ function App() {
   const pityKey = 'poolType';
   const crossPool = game.id === 'arknights';
   const stats = useMemo(() => poolTypes.map((pt) => analyzePool(records, pt, pityKey, crossPool)), [records, poolTypes, pityKey, crossPool]);
+  const arknightsCombined = useMemo(() => game.id === 'arknights' && records.length ? analyzePool(records, '', pityKey, true) : null, [game.id, records, pityKey]);
   const total = records.length;
   const sCount = records.filter((r) => r.rankType === 'S').length;
   const aCount = records.filter((r) => r.rankType === 'A').length;
@@ -549,13 +525,29 @@ function App() {
                   <MiniBar label={game.id === 'arknights' ? '5 星' : 'A 级'} value={aCount} max={total} tone="a" />
                   <MiniBar label={game.id === 'arknights' ? '4 星' : 'B 级'} value={Math.max(0, total - sCount - aCount)} max={total} tone="b" />
                 </div>
-                {stats.map((s) => <PoolPanel key={s.poolType} stats={s} pityCap={poolPityMap[s.poolType] ?? game.pityCap} game={game} />)}
+                {arknightsCombined
+                  ? <PoolPanel stats={arknightsCombined} pityCap={game.pityCap} game={game} />
+                  : stats.map((s) => <PoolPanel key={s.poolType} stats={s} pityCap={poolPityMap[s.poolType] ?? game.pityCap} game={game} />)}
+                <div className="panel wide">
+                  <div className="panel-head"><h3>最近{game.sUnit}出货</h3><span>卡片视图</span></div>
+                  <div className="recent-cards">
+                    {sHitList.length ? sHitList.slice(0, 20).map((hit, i) => (
+                      <div className="recent-card" key={`card-${hit.name}-${i}`}>
+                        <div className="recent-card-img">
+                          <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} itemType={hit.itemType} size={64} />
+                        </div>
+                        <span className="recent-card-name">{hit.name}</span>
+                        <span className="recent-card-pity">{hit.pity} 抽</span>
+                      </div>
+                    )) : <div className="empty">暂无{game.sUnit}出货记录</div>}
+                  </div>
+                </div>
                 <div className="panel wide s-hit-panel">
                   <div className="panel-head"><h3>{game.sUnit}出货记录</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={hitSortAsc} onToggle={() => setHitSortAsc(!hitSortAsc)} /><span>共 {sHitList.length} 次</span></div></div>
                   <div className="hit-list">
                     {sHitList.length ? sHitList.map((hit, i) => (
                       <div className="hit-row" key={`${hit.name}-${i}`}>
-                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} size={30} />
+                        <CharAvatar name={hit.name} rankType="S" gameId={game.id} itemId={hit.itemId} itemType={hit.itemType} size={30} />
                         <span className="hit-row-name">{hit.name}</span>
                         <div className="hit-row-track"><div className="hit-row-bar s-bar" style={{ width: `${(hit.pity / maxPity) * 100}%` }} /></div>
                         <b className="hit-row-pity">{hit.pity}</b>
@@ -575,11 +567,25 @@ function App() {
                 <section className="dashboard-grid pool-view">
                   <PoolPanel stats={cs} pityCap={poolPityMap[cs.poolType] ?? game.pityCap} game={game} />
                   <div className="panel wide">
+                    <div className="panel-head"><h3>最近{game.sUnit}出货</h3><span>卡片视图</span></div>
+                    <div className="recent-cards">
+                      {sortedIntervals.length ? sortedIntervals.slice(0, 20).map((item, i) => (
+                        <div className="recent-card" key={`card-${item.pity}-${i}`}>
+                          <div className="recent-card-img">
+                            <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} itemType={item.itemType} size={64} />
+                          </div>
+                          <span className="recent-card-name">{item.name}</span>
+                          <span className="recent-card-pity">{item.pity} 抽</span>
+                        </div>
+                      )) : <div className="empty">暂无{game.sUnit}出货记录</div>}
+                    </div>
+                  </div>
+                  <div className="panel wide">
                     <div className="panel-head"><h3>{game.sUnit}出货间隔</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={intervalSortAsc} onToggle={() => setIntervalSortAsc(!intervalSortAsc)} /><span>按时间顺序</span></div></div>
                     <div className="hit-list">
                       {sortedIntervals.length ? sortedIntervals.map((item, i) => (
                         <div className="hit-row" key={`${item.pity}-${i}`}>
-                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} size={30} />
+                          <CharAvatar name={item.name} rankType="S" gameId={game.id} itemId={item.itemId} itemType={item.itemType} size={30} />
                           <span className="hit-row-name">{item.name}</span>
                           <div className="hit-row-track"><div className="hit-row-bar i-bar" style={{ width: `${(item.pity / (poolPityMap[cs.poolType] ?? game.pityCap)) * 100}%` }} /></div>
                           <b className="hit-row-pity">{item.pity}</b>
@@ -599,7 +605,7 @@ function App() {
                   <tbody>
                     {visibleRecords.slice(0, 500).map((r) => (
                       <tr key={recordKey(r)} className={`rank-${r.rankType.toLowerCase()}`}>
-                        <td>{r.time}</td><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><CharAvatar name={r.name} rankType={r.rankType} gameId={game.id} itemId={r.itemId ?? ''} size={40} /><span>{r.name}</span></div></td><td>{rankDisplay(r.rankType, game.id)}</td><td>{r.itemType}</td><td>{r.poolName}</td><td>{r.uid}</td>
+                        <td>{r.time}</td><td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><CharAvatar name={r.name} rankType={r.rankType} gameId={game.id} itemId={r.itemId ?? ''} itemType={r.itemType} size={40} /><span>{r.name}</span></div></td><td>{rankDisplay(r.rankType, game.id)}</td><td>{r.itemType}</td><td>{r.poolName}</td><td>{r.uid}</td>
                       </tr>
                     ))}
                   </tbody>
