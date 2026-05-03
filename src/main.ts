@@ -452,7 +452,7 @@ async function fetchArknightsRecordsDirectly(hgToken: string, progress: (msg: st
       for (const item of list) {
         const charId = String(item.charId ?? '');
         const gachaTs = String(item.gachaTs ?? '');
-        const dedupKey = `${charId}_${gachaTs}`;
+        const dedupKey = `${charId}_${gachaTs}_${item.pos ?? ''}`;
         if (seenKeys.has(dedupKey)) continue;
         seenKeys.add(dedupKey);
         allRecords.push({
