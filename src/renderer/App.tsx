@@ -143,6 +143,36 @@ function analyzePool(records: GachaRecord[], poolType: PoolType | '', pityKey: '
   };
 }
 
+function akIdTail(v: string): number { const p = v.lastIndexOf('_'); return parseInt(v.slice(p + 1), 10) || 0; }
+function arknightsSort(a: GachaRecord, b: GachaRecord): number {
+  const tc = a.time.localeCompare(b.time);
+  if (tc !== 0) return tc;
+  return akIdTail(a.id) - akIdTail(b.id);
+}
+
+function arknightsAnalyzePool(records: GachaRecord[], poolType: PoolType | '', crossPool = false): PoolStats {
+  const pool = poolType ? records.filter((r) => r.poolType === poolType).sort(arknightsSort) : [...records].sort(arknightsSort);
+  const firstPoolName = pool.find((r) => r.poolName)?.poolName ?? '';
+  let sinceS = 0;
+  const intervals: { pity: number; name: string; itemId: string; itemType: string }[] = [];
+  let latestS: GachaRecord | null = null;
+  pool.forEach((r) => {
+    sinceS++;
+    if (r.rankType === 'S') { intervals.push({ pity: sinceS, name: r.name, itemId: r.itemId ?? '', itemType: r.itemType }); sinceS = 0; latestS = r; }
+  });
+  const sCount = pool.filter((r) => r.rankType === 'S').length;
+  const aCount = pool.filter((r) => r.rankType === 'A').length;
+  return {
+    poolType: poolType || 'standard', poolName: firstPoolName || (poolType ? POOL_LABELS[poolType] : '全部寻访') || poolType,
+    total: pool.length, sCount, aCount, bCount: pool.length - sCount - aCount,
+    currentPity: sinceS,
+    averageS: intervals.length ? Math.round((intervals.reduce((s, n) => s + n.pity, 0) / intervals.length) * 10) / 10 : 0,
+    bestS: intervals.length ? Math.min(...intervals.map((n) => n.pity)) : null,
+    worstS: intervals.length ? Math.max(...intervals.map((n) => n.pity)) : null,
+    sIntervals: intervals, latestS
+  };
+}
+
 function buildMonthly(records: GachaRecord[]) {
   const map = new Map<string, { total: number; s: number; a: number }>();
   records.forEach((r) => {
@@ -165,6 +195,20 @@ function buildSHitList(records: GachaRecord[], pityKey: 'poolType' | 'poolName' 
   const byPool: Record<string, number> = {};
   [...records].sort(stableSort).forEach((r) => {
     const key = crossPool ? '__all__' : (pityKey === 'poolName' ? r.poolName : r.poolType);
+    byPool[key] = (byPool[key] ?? 0) + 1;
+    if (r.rankType === 'S') {
+      hits.push({ name: r.name, pity: byPool[key], time: r.time, poolName: r.poolName, itemId: r.itemId ?? '', itemType: r.itemType });
+      byPool[key] = 0;
+    }
+  });
+  return hits.reverse();
+}
+
+function arknightsBuildSHitList(records: GachaRecord[], crossPool = false): SHit[] {
+  const hits: SHit[] = [];
+  const byPool: Record<string, number> = {};
+  [...records].sort(arknightsSort).forEach((r) => {
+    const key = crossPool ? '__all__' : r.poolType;
     byPool[key] = (byPool[key] ?? 0) + 1;
     if (r.rankType === 'S') {
       hits.push({ name: r.name, pity: byPool[key], time: r.time, poolName: r.poolName, itemId: r.itemId ?? '', itemType: r.itemType });
@@ -335,14 +379,20 @@ function App() {
   }, [game.id]);
   const pityKey = 'poolType';
   const crossPool = game.id === 'arknights';
-  const stats = useMemo(() => poolTypes.map((pt) => analyzePool(records, pt, pityKey, crossPool)), [records, poolTypes, pityKey, crossPool]);
-  const arknightsCombined = useMemo(() => game.id === 'arknights' && records.length ? analyzePool(records, '', pityKey, true) : null, [game.id, records, pityKey]);
+  const stats = useMemo(() => game.id === 'arknights'
+    ? poolTypes.map((pt) => arknightsAnalyzePool(records, pt, crossPool))
+    : poolTypes.map((pt) => analyzePool(records, pt, pityKey, crossPool)),
+    [records, poolTypes, pityKey, crossPool, game.id]);
+  const arknightsCombined = useMemo(() => game.id === 'arknights' && records.length ? arknightsAnalyzePool(records, '', true) : null, [game.id, records]);
   const total = records.length;
   const sCount = records.filter((r) => r.rankType === 'S').length;
   const aCount = records.filter((r) => r.rankType === 'A').length;
   const monthly = useMemo(() => buildMonthly(records), [records]);
   const maxMonth = Math.max(1, ...monthly.map(([, v]) => v.total));
-  const sHitListRaw = useMemo(() => buildSHitList(records, pityKey, crossPool), [records, pityKey, crossPool]);
+  const sHitListRaw = useMemo(() => game.id === 'arknights'
+    ? arknightsBuildSHitList(records, crossPool)
+    : buildSHitList(records, pityKey, crossPool),
+    [records, pityKey, crossPool, game.id]);
   const sHitList = useMemo(() => hitSortAsc ? [...sHitListRaw].reverse() : sHitListRaw, [sHitListRaw, hitSortAsc]);
   const maxPity = Math.max(1, ...sHitList.map((h) => h.pity));
   const overallAvgPity = sHitListRaw.length > 0
