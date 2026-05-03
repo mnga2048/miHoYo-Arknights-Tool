@@ -13,6 +13,7 @@ declare global {
       showInput: (message: string, defaultVal: string) => Promise<string | null>;
       fetchArknightsRecords: () => Promise<GachaRecord[] | null>;
       closeArknightsWebView: () => Promise<void>;
+      openExternal: (url: string) => Promise<void>;
     };
   }
 }

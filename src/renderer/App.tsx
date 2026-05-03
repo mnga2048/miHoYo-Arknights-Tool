@@ -4,7 +4,7 @@ import type { GachaRecord, ImportResult, PoolType, RankType } from '../shared/ty
 import { POOL_LABELS } from '../shared/types';
 import { GAMES, getGameConfig } from '../shared/games';
 import type { GameConfig } from '../shared/games';
-import GENSHIN_EN_NAME from '../shared/genshin-names.json';
+import GENSHIN_ICONS from '../shared/genshin-icons.json';
 import './styles.css';
 
 type Tab = 'overview' | 'records' | 'settings';
@@ -205,9 +205,9 @@ const getAvatarUrls = () => {
   }
 
   if (gameId === 'genshin' && name) {
-    const en = GENSHIN_EN_NAME[name];
-    if (en) {
-      return [`https://enka.network/ui/UI_AvatarIcon_${en}.png`];
+    const entry = GENSHIN_ICONS[name];
+    if (entry) {
+      return [`https://enka.network/ui/${entry.icon}`];
     }
     return [];
   }
@@ -217,7 +217,12 @@ const getAvatarUrls = () => {
     const folder = isLightCone ? 'light_cone' : 'character';
     return [`https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/icon/${folder}/${itemId}.png`];
   }
-
+if (gameId === 'zzz' && itemId) {
+  return [
+    `https://enka.network/ui/${itemId}.png`,
+    `https://enka.network/ui/UI_AvatarIcon_${itemId}.png`
+  ];
+}
   return [];
 };
 
@@ -300,6 +305,8 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [status, setStatus] = useState('正在加载本地记录...');
   const [filter, setFilter] = useState('');
+  const [filterPool, setFilterPool] = useState('');
+  const [filterRank, setFilterRank] = useState('');
   const [fetching, setFetching] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [sortAsc, setSortAsc] = useState(false);
@@ -338,9 +345,14 @@ function App() {
     : 0;
 
   const visibleRecords = useMemo(() => {
-    const filtered = records.filter((r) => `${r.name}${r.itemType}${r.poolName}${r.uid}`.includes(filter.trim()));
+    const filtered = records.filter((r) => {
+      if (filterPool && r.poolType !== filterPool) return false;
+      if (filterRank && r.rankType !== filterRank) return false;
+      if (filter.trim() && !`${r.name}${r.itemType}${r.poolName}${r.uid}`.includes(filter.trim())) return false;
+      return true;
+    });
     return [...filtered].sort(sortAsc ? stableSort : (a, b) => -stableSort(a, b) || 0);
-  }, [records, filter, sortAsc]);
+  }, [records, filter, filterPool, filterRank, sortAsc]);
 
   const loadGameData = useCallback(async (gid: string) => {
     try {
@@ -447,18 +459,21 @@ function App() {
           ))}
         </div>
 
-        <nav>
-          <button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>总览</button>
-          {poolTypes.map((pt) => (
-            <button key={pt} className={activeTab === pt ? 'active' : ''} onClick={() => setActiveTab(pt as Tab)}>
-              {poolNameMap[pt] || POOL_LABELS[pt] || pt}
-            </button>
-          ))}
-          <button className={activeTab === 'records' ? 'active' : ''} onClick={() => setActiveTab('records')}>明细</button>
-          <button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>管理</button>
-        </nav>
+<nav>
+  <button className={activeTab === 'overview' ? 'active' : ''} onClick={() => setActiveTab('overview')}>总览</button>
+  {game.id !== 'arknights' && poolTypes.map((pt) => (
+    <button key={pt} className={activeTab === pt ? 'active' : ''} onClick={() => setActiveTab(pt as Tab)}>
+      {poolNameMap[pt] || POOL_LABELS[pt] || pt}
+    </button>
+  ))}
+  <button className={activeTab === 'records' ? 'active' : ''} onClick={() => setActiveTab('records')}>明细</button>
+  <button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>管理</button>
+</nav>
 
-        <button className="help-btn" onClick={() => setShowHelp(true)}>使用帮助</button>
+        {activeGameId === 'zzz' && (
+          <button className="action-btn wiki-btn" onClick={() => window.zzzApi?.openExternal('https://baike.mihoyo.com/zzz/wiki/channel/map/2/43')}>访问情报站</button>
+        )}
+        <button className="action-btn" onClick={() => setShowHelp(true)}>使用帮助</button>
 
         <div className="side-note">
           <strong>{total}</strong>
@@ -598,7 +613,7 @@ function App() {
             })()}
 
             <section className="records-panel">
-              <div className="panel-head"><h3>抽卡明细</h3><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><SortBtn asc={sortAsc} onToggle={() => setSortAsc(!sortAsc)} /><input placeholder="搜索" value={filter} onChange={(e) => setFilter(e.target.value)} /></div></div>
+              <div className="panel-head"><h3>抽卡明细</h3><div className="filter-bar"><SortBtn asc={sortAsc} onToggle={() => setSortAsc(!sortAsc)} /><select value={filterPool} onChange={(e) => setFilterPool(e.target.value)}><option value="">全部卡池</option>{poolTypes.map((pt) => <option key={pt} value={pt}>{poolNameMap[pt] || POOL_LABELS[pt] || pt}</option>)}</select><select value={filterRank} onChange={(e) => setFilterRank(e.target.value)}><option value="">全部稀有度</option><option value="S">{game.sUnit}</option><option value="A">{game.id === 'arknights' ? '5 星' : 'A 级'}</option><option value="B">{game.id === 'arknights' ? '4 星' : 'B 级'}</option></select><input placeholder="搜索" value={filter} onChange={(e) => setFilter(e.target.value)} /></div></div>
               <div className="table-wrap">
                 <table>
                   <thead><tr><th>时间</th><th>名称</th><th>稀有度</th><th>类型</th><th>卡池</th><th>UID</th></tr></thead>

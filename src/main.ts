@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import https from 'node:https';
@@ -78,6 +78,10 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('data:load', async (_e, gameId: string) => readStoredData(gameId));
 ipcMain.handle('data:save', async (_e, gameId: string, records: GachaRecord[]) => writeStoredData(gameId, records));
+
+ipcMain.handle('shell:openExternal', async (_e, url: string) => {
+  await shell.openExternal(url);
+});
 
 ipcMain.handle('data:showInput', async (_e, message: string) => {
   const focused = BrowserWindow.getFocusedWindow();

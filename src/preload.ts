@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('zzzApi', {
   showInput: (message: string, defaultVal: string): Promise<string | null> =>
     ipcRenderer.invoke('data:showInput', message, defaultVal),
   fetchArknightsRecords: (): Promise<GachaRecord[] | null> => ipcRenderer.invoke('data:fetchArknightsRecords'),
-  closeArknightsWebView: (): Promise<void> => ipcRenderer.invoke('data:closeArknightsWebView')
+  closeArknightsWebView: (): Promise<void> => ipcRenderer.invoke('data:closeArknightsWebView'),
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url)
 });

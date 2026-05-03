@@ -172,16 +172,33 @@ nav button.active {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.help-btn {
-  background: transparent;
-  color: #6b7280;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 13px;
+.action-btn {
+  width: 100%;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(227, 255, 55, 0.1);
+  border: 1px solid rgba(227, 255, 55, 0.2);
+  color: #e3ff37;
+  text-align: center;
 }
 
-.help-btn:hover {
-  color: #9ca2b3;
-  background: rgba(255, 255, 255, 0.04);
+.action-btn:hover {
+  background: rgba(227, 255, 55, 0.18);
+  border-color: rgba(227, 255, 55, 0.35);
+}
+
+.wiki-btn {
+  background: rgba(79, 140, 255, 0.1);
+  border-color: rgba(79, 140, 255, 0.2);
+  color: #4f8cff;
+  margin-bottom: 8px;
+}
+
+.wiki-btn:hover {
+  background: rgba(79, 140, 255, 0.18);
+  border-color: rgba(79, 140, 255, 0.35);
 }
 
 .modal-overlay {
@@ -331,6 +348,28 @@ nav button.active {
 
 .sort-btn:hover:not(:disabled) {
   background: rgba(227, 255, 55, 0.22);
+}
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-bar select {
+  background: #111318;
+  color: #eef0f5;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filter-bar select:hover {
+  border-color: rgba(227, 255, 55, 0.3);
 }
 
 .fetch-btn:disabled {
