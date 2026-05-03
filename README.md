@@ -130,24 +130,35 @@
 
 ```
 ├── src/
-│   ├── renderer/
-│   │   ├── App.tsx                 # 主渲染逻辑
-│   │   ├── styles.css              # 样式
-│   │   └── genshin-icons.json     # 原神图标映射
-│   │   └── zzz-icons.json         # 绝区零图标映射
+│   ├── main.ts                          # Electron 主进程（API 抓取、窗口管理）
+│   ├── preload.ts                       # 预加载脚本（IPC 桥接）
 │   ├── shared/
-│   │   ├── games.ts                # 游戏配置（API、卡池类型等）
-│   │   ├── types.ts                # 类型定义
-│   │   └── genshin-names.json      # （若存在）原神英文名映射
-│   ├── main.ts                     # Electron主进程
-│   └── preload.ts                  # 预加载脚本
-├── package.json
-└── README.md
+│   │   ├── games.ts                     # 游戏配置（API 地址、卡池类型、rankMap 等）
+│   │   ├── types.ts                     # TypeScript 类型定义
+│   │   ├── genshin-icons.json          # 原神图标映射（115 角色 + 231 武器）
+│   │   └── zzz-icons.json              # 绝区零图标映射（51 角色 + 87 武器）
+│   └── renderer/
+│       ├── App.tsx                      # React 主组件（UI 渲染、状态管理）
+│       ├── global.d.ts                  # 全局类型声明
+│       └── styles.css                   # 样式表
+├── index.html                           # 入口 HTML
+├── package.json                         # 项目配置与脚本
+├── package-lock.json                    # 依赖版本锁定
+├── tsconfig.json                        # TypeScript 配置（渲染进程）
+├── tsconfig.electron.json               # TypeScript 配置（Electron 主进程）
+├── vite.config.ts                       # Vite 构建配置
+├── installer.nsh                        # NSIS 安装脚本定制
+├── launch.vbs                           # Windows 启动脚本
+├── start.vbs                            # Windows 启动脚本
+├── .gitignore                           # Git 忽略规则
+├── .npmrc                               # npm 镜像配置
+├── samples/                             # 示例数据
+└── README.md                            # 本文件
 ```
 
 ---
 
-## 六、编译方式
+## 七、编译方式
 
 技术栈
 
@@ -169,7 +180,7 @@ npm run dist
 
 产物位于 `release/` 目录。
 
-## 七、注意事项
+## 八、注意事项
 
 - 所有数据仅存储在本地（`userData` 目录下），不上传任何账号信息。
 - `authkey` 有效期约 24 小时，过期后需重新在游戏内打开抽卡记录页面刷新。
